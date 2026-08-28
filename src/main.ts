@@ -45,6 +45,7 @@ function main(): void {
       optimizerContainer: requireElement('optimizer'),
       metricsPopover: requireElement('metrics-popover'),
       metricsToggle: requireButton('metrics-toggle'),
+      statsToggle: requireButton('stats-toggle'),
       deckToggle: requireButton('deck-toggle'),
       deckBody: requireElement('deck-body'),
     });

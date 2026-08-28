@@ -384,6 +384,15 @@ describe('HUD text scale (adapt pass: constant CSS-pixel readout on shrunken can
       expect(text.text).toBe(reference.text);
     });
   });
+
+  it('a null hud (Stats chip off) emits no readout at all — neither line', () => {
+    const hidden = renderer.buildFrame(renderer.buildScene(world, control, 0.5, null));
+    expect(hudTexts(hidden)).toEqual([]);
+    // Everything else is untouched by the toggle.
+    const shown = frameWith();
+    const strip = (list: readonly DrawCommand[]) => list.filter((command) => command.layer !== 'hud');
+    expect(strip(hidden)).toEqual(strip(shown));
+  });
 });
 
 describe('draw-list frame: all-way-stop preset', () => {

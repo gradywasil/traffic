@@ -29,7 +29,7 @@ Traffic-engineer-honest metrics on a from-scratch simulation: control delay meas
 
 - Hosted at `https://traffic.graydonwasil.com` — GitHub Pages deployed by Actions on push to `main`; DNS on Cloudflare. Repo: `Arrangedgodly/traffic`.
 - Desktop evergreen browsers (latest-2), mouse + keyboard, ≥1280×720 viewport.
-- Mobile is in scope (owner decision 2026-08-28, adapt pass): phones and tablets get **full parity** — every control, the optimizer, and arm/lane editing work on touch. Portrait uses a docked-deck composition (world + metrics on top, controls docked at the bottom); landscape scrolls; desktop is unchanged.
+- Mobile is in scope (owner decision 2026-08-28, adapt pass): phones and tablets get **full parity** — every control, the optimizer, and arm/lane editing work on touch. Portrait uses a docked-deck composition (world + metrics on top, controls docked at the bottom); landscape scrolls; desktop is unchanged. The mobile canvas zooms to the road (E–W road edge to edge) and the stats HUD (FPS/sim/cars) is hideable via the canvas "Stats" chip.
 - Single-user, session-only: nothing persists, nothing leaves the browser, no backend, no telemetry.
 - Dev: `npm run dev`; build + typecheck: `npm run build`; full suite: `npm test`.
 

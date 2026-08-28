@@ -17,7 +17,12 @@
 import type { ArmId } from '../config';
 import { ARM_IDS } from '../config';
 import type { IntersectionGeometry } from '../geom';
-import { CANVAS_CENTER_PX, CANVAS_LOGICAL_HEIGHT_PX, CANVAS_LOGICAL_WIDTH_PX, PX_PER_METER } from '../geom';
+import {
+  CANVAS_CENTER_PX,
+  CANVAS_LOGICAL_HEIGHT_PX,
+  CANVAS_LOGICAL_WIDTH_PX,
+  PX_PER_METER,
+} from '../geom';
 
 export interface ArmLanePick {
   readonly arm: ArmId;
@@ -32,17 +37,27 @@ export function logicalPxToWorldMeters(point: { x: number; y: number }): { x: nu
   };
 }
 
-/** CSS-relative pointer coordinates → logical canvas pixels (1280×720 frame). */
+/**
+ * CSS-relative pointer coordinates → logical canvas pixels (1280×720 frame),
+ * inverting an optional view zoom about the frame center (the painter zooms
+ * the world on mobile; a tap must map back through the same view).
+ */
 export function clientPointToLogicalPx(
   rect: { readonly width: number; readonly height: number; readonly left: number; readonly top: number },
   clientX: number,
   clientY: number,
+  viewZoom = 1,
 ): { x: number; y: number } {
   const width = rect.width > 0 ? rect.width : 1;
   const height = rect.height > 0 ? rect.height : 1;
-  return {
+  const raw = {
     x: ((clientX - rect.left) / width) * CANVAS_LOGICAL_WIDTH_PX,
     y: ((clientY - rect.top) / height) * CANVAS_LOGICAL_HEIGHT_PX,
+  };
+  if (viewZoom === 1) return raw;
+  return {
+    x: CANVAS_CENTER_PX.x + (raw.x - CANVAS_CENTER_PX.x) / viewZoom,
+    y: CANVAS_CENTER_PX.y + (raw.y - CANVAS_CENTER_PX.y) / viewZoom,
   };
 }
 

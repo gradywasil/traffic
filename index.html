@@ -87,11 +87,19 @@
          as a dismissible overlay — flat tonal card + hairline, no shadow
          (doctrine) — so the world column is canvas-only and the page never
          scrolls. The toggle chip sits in the canvas's bottom-left corner. */
-      #metrics-toggle {
+      /* Canvas chip row (owner request + adapt pass): the overlays' toggles
+         ride ON the canvas — Metrics (the stats card) and Stats (the HUD
+         readout) — flat tonal chips + hairline, no shadow (doctrine). The
+         HUD text keeps the canvas's top-left; this row owns the bottom-left. */
+      .canvas-chips {
         position: absolute;
         left: 14px;
         bottom: 14px;
         z-index: 3;
+        display: flex;
+        gap: 6px;
+      }
+      .canvas-chips button {
         font: inherit;
         font-size: 12px;
         color: var(--text);
@@ -101,7 +109,7 @@
         padding: 4px 10px;
         cursor: pointer;
       }
-      #metrics-toggle[aria-pressed='true'] {
+      .canvas-chips button[aria-pressed='true'] {
         border-color: var(--accent);
         color: var(--accent);
       }
@@ -640,7 +648,7 @@
       /* Touch feedback: a pressed control steps one rung up the tonal ladder
          — instant color state, per doctrine (never motion). */
       .pause-button:active,
-      #metrics-toggle:active,
+      .canvas-chips button:active,
       .optimizer-run-button:active,
       .optimizer-cancel-button:active,
       .optimizer-apply-button:active,
@@ -667,7 +675,7 @@
         .optimizer-run-button,
         .optimizer-cancel-button,
         .optimizer-apply-button,
-        #metrics-toggle,
+        .canvas-chips button,
         #deck-toggle,
         select,
         .slider-field,
@@ -724,11 +732,10 @@
           width: 100%;
           flex: none;
         }
-        /* The card is in flow under the canvas, so its toggle chip flows
-           too — a small pill on the seam line, not a floating corner. */
-        #metrics-toggle {
+        /* The card is in flow under the canvas, so its toggle chips flow
+           too — a small pill row on the seam line, not floating corners. */
+        .canvas-chips {
           position: static;
-          align-self: flex-start;
           margin: 6px;
         }
         .metrics {
@@ -849,9 +856,8 @@
           flex: none;
           align-self: center;
         }
-        #metrics-toggle {
+        .canvas-chips {
           position: static;
-          align-self: flex-start;
           margin: 6px;
         }
         .metrics {
@@ -896,7 +902,14 @@
              canvas as a dismissible overlay, so the world column is
              canvas-only and nothing ever page-scrolls. The toggle lives in
              the canvas's bottom-left corner (the HUD owns the top-left). -->
-          <button id="metrics-toggle" type="button" aria-pressed="true">Metrics</button>
+          <!-- Canvas chip row: the overlays' toggles share the canvas's
+             bottom-left corner (the HUD readout owns the top-left). Metrics
+             toggles the stats card; Stats toggles the canvas HUD (FPS · sim
+             clock · car count). Both are aria-pressed chips, default on. -->
+          <div class="canvas-chips">
+            <button id="metrics-toggle" type="button" aria-pressed="true">Metrics</button>
+            <button id="stats-toggle" type="button" aria-pressed="true">Stats</button>
+          </div>
           <section class="metrics" id="metrics-popover" aria-label="Live metrics">
             <h2 class="visually-hidden">Live metrics</h2>
             <!-- The premise line: the one taught interaction — the aha action

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARM_IDS } from '../config';
 import { buildIntersectionGeometry } from '../geom';
-import { CANVAS_CENTER_PX, worldToCanvas } from '../geom';
+import { CANVAS_CENTER_PX, ROAD_FILL_WIDTH_ZOOM, worldToCanvas } from '../geom';
 import { getPreset } from '../presets';
 import { clientPointToLogicalPx, logicalPxToWorldMeters, pickArmLane } from './picking';
 
@@ -36,6 +36,29 @@ describe('coordinate transforms', () => {
     const corner = clientPointToLogicalPx(rect, 940, 528.75);
     expect(corner.x).toBeCloseTo(1280, 6);
     expect(corner.y).toBeCloseTo(720, 6);
+  });
+
+  it('clientPointToLogicalPx inverts the mobile view zoom about the center', () => {
+    const rect = { left: 0, top: 0, width: 378, height: 212.625 };
+    const zoom = ROAD_FILL_WIDTH_ZOOM;
+    // The center is zoom-invariant.
+    const center = clientPointToLogicalPx(rect, 189, 106.3125, zoom);
+    expect(center.x).toBeCloseTo(CANVAS_CENTER_PX.x, 6);
+    expect(center.y).toBeCloseTo(CANVAS_CENTER_PX.y, 6);
+    // A CSS left-edge tap maps back to the world's left edge: the road runs
+    // edge to edge under the zoom, so the screen edge IS the arm end.
+    const leftEdge = clientPointToLogicalPx(rect, 0, 106.3125, zoom);
+    expect(leftEdge.x).toBeCloseTo(CANVAS_CENTER_PX.x - CANVAS_CENTER_PX.x / zoom, 6);
+    // Round trip: a world point, painted under the zoom, taps back to itself.
+    const world = { x: -80, y: 12 };
+    const logical = worldToCanvas(world);
+    const onScreen = {
+      x: ((CANVAS_CENTER_PX.x + (logical.x - CANVAS_CENTER_PX.x) * zoom) / 1280) * rect.width,
+      y: ((CANVAS_CENTER_PX.y + (logical.y - CANVAS_CENTER_PX.y) * zoom) / 720) * rect.height,
+    };
+    const picked = clientPointToLogicalPx(rect, onScreen.x, onScreen.y, zoom);
+    expect(picked.x).toBeCloseTo(logical.x, 6);
+    expect(picked.y).toBeCloseTo(logical.y, 6);
   });
 });
 

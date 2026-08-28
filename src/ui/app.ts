@@ -32,7 +32,7 @@ import type { DrawCommand } from '../render/drawlist';
 import { SELECTION_ARM_COLOR, SELECTION_LANE_COLOR } from '../render/colors';
 import { configureCanvas, paintFrame } from '../render/painter';
 import { WorldRenderer } from '../render/renderer';
-import { CANVAS_CENTER_PX, CANVAS_LOGICAL_WIDTH_PX, worldToCanvas } from '../geom';
+import { CANVAS_CENTER_PX, CANVAS_LOGICAL_WIDTH_PX, ROAD_FILL_WIDTH_ZOOM, worldToCanvas } from '../geom';
 import { getPreset } from '../presets';
 import type { ArmId } from '../config';
 import { clientPointToLogicalPx, logicalPxToWorldMeters, pickArmLane } from './picking';
@@ -67,8 +67,10 @@ export interface AppElements {
   readonly optimizerContainer: HTMLElement;
   /** The metrics popover riding on the canvas (owner-request layout). */
   readonly metricsPopover: HTMLElement;
-  /** The popover's corner toggle chip on the canvas. */
+  /** The canvas's corner chip row: metrics + stats (HUD) toggles. */
   readonly metricsToggle: HTMLButtonElement;
+  /** The chip that shows/hides the canvas HUD readout (FPS/sim/cars). */
+  readonly statsToggle: HTMLButtonElement;
   /** Mobile deck (adapt pass): the docked panel's expand/collapse bar. */
   readonly deckToggle: HTMLButtonElement;
   /** The docked panel's scrollable body (wrapped for the deck layout). */
@@ -110,7 +112,23 @@ export function bootApp(elements: AppElements): void {
   let renderer = new WorldRenderer(runtime.geometry, runtime.config);
   const model = new PanelModel(initialConfig);
   const meter = new FpsMeter();
-  let ctx = configureCanvas(elements.canvas);
+
+  // World view (adapt pass): the mobile composition (< 980px, portrait or
+  // landscape) zooms the world so the E–W road runs edge to edge — the full
+  // 240 m overview is the desktop frame. The query mirrors the stylesheet's
+  // composition switch; crossing it re-configures the painter's transform.
+  const mobileQuery = window.matchMedia('(max-width: 980px)');
+  let worldZoom = mobileQuery.matches ? ROAD_FILL_WIDTH_ZOOM : 1;
+  let ctx = configureCanvas(elements.canvas, { zoom: worldZoom });
+  const reconfigureCanvas = (): void => {
+    worldZoom = mobileQuery.matches ? ROAD_FILL_WIDTH_ZOOM : 1;
+    ctx = configureCanvas(elements.canvas, { zoom: worldZoom });
+  };
+
+  // Stats chip: the canvas HUD readout (FPS · sim clock · car count) is
+  // hideable chrome — visible by default (the incumbent frame), one tap
+  // removes it from the stage entirely.
+  let hudVisible = true;
 
   // U3: metrics display — chart + headline text (consumes snapshots only) and
   // the engineering overlay (snapshot + config params, read-only).
@@ -131,15 +149,17 @@ export function bootApp(elements: AppElements): void {
       // laid-out box, so the readout's font and insets are pre-multiplied
       // by the inverse scale — capped so a tiny canvas never grows a
       // billboard. On desktop windows this holds ~14 CSS px (it used to
-      // drift with window width).
+      // drift with window width). Hidden stats pass a null hud — the
+      // renderer then emits no readout at all.
       const cssWidth = elements.canvas.clientWidth || CANVAS_LOGICAL_WIDTH_PX;
       const textScale = Math.min(3.2, CANVAS_LOGICAL_WIDTH_PX / Math.max(1, cssWidth));
-      const commands = renderer.frame(runtime.world, runtime.control, alpha, {
-        fps: meter.fps,
-        frameMs: meter.frameMs,
-        textScale,
-      });
-      paintFrame(ctx, appendSelectionHighlight(commands, runtime, model));
+      const commands = renderer.frame(
+        runtime.world,
+        runtime.control,
+        alpha,
+        hudVisible ? { fps: meter.fps, frameMs: meter.frameMs, textScale } : null,
+      );
+      paintFrame(ctx, appendSelectionHighlight(commands, runtime, model), { zoom: worldZoom });
       meter.push(frameDt);
       // Metrics display: snapshot each frame (cheap, ~µs at window size) and
       // let the ~1 Hz sim-time gates decide whether anything redraws.
@@ -195,7 +215,7 @@ export function bootApp(elements: AppElements): void {
 
   elements.canvas.addEventListener('click', (event) => {
     const rect = elements.canvas.getBoundingClientRect();
-    const logical = clientPointToLogicalPx(rect, event.clientX, event.clientY);
+    const logical = clientPointToLogicalPx(rect, event.clientX, event.clientY, worldZoom);
     const world = logicalPxToWorldMeters(logical);
     const pick = pickArmLane(runtime.geometry, world);
     model.select(pick === null ? null : pick.arm, pick === null ? null : pick.laneIndex);
@@ -208,6 +228,12 @@ export function bootApp(elements: AppElements): void {
     const open = elements.metricsPopover.hasAttribute('hidden');
     elements.metricsPopover.toggleAttribute('hidden', !open);
     elements.metricsToggle.setAttribute('aria-pressed', String(open));
+  });
+
+  // Stats chip: toggles the canvas HUD readout (FPS / sim clock / car count).
+  elements.statsToggle.addEventListener('click', () => {
+    hudVisible = !hudVisible;
+    elements.statsToggle.setAttribute('aria-pressed', String(hudVisible));
   });
 
   // Mobile deck (adapt pass): in the portrait composition the panel docks
@@ -234,9 +260,8 @@ export function bootApp(elements: AppElements): void {
   deckQuery.addEventListener('change', applyDeckState);
   applyDeckState();
 
-  window.addEventListener('resize', () => {
-    ctx = configureCanvas(elements.canvas);
-  });
+  window.addEventListener('resize', reconfigureCanvas);
+  mobileQuery.addEventListener('change', reconfigureCanvas);
 
   // Harden: a throwing frame means the simulation state is suspect — stop
   // the loop and surface ONE honest notice (with the way out) instead of

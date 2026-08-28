@@ -32,6 +32,14 @@ export const CANVAS_CENTER_PX = { x: CANVAS_LOGICAL_WIDTH_PX / 2, y: CANVAS_LOGI
 export const ARM_LENGTH_METERS = 120;
 
 /**
+ * View zoom that fills the canvas WIDTH with the road (240 m arm-to-arm =
+ * 696 logical px): 1280 / 696 ≈ 1.839. The mobile canvas (adapt pass) trades
+ * the full-world overview for this crop — the E–W road runs edge to edge and
+ * the N/S arm tips extend past the top and bottom of the frame.
+ */
+export const ROAD_FILL_WIDTH_ZOOM = CANVAS_LOGICAL_WIDTH_PX / (2 * ARM_LENGTH_METERS * PX_PER_METER);
+
+/**
  * Stop-line setback from the box edge (meters). Models the crosswalk strip
  * real intersections leave before the conflict area, and sets the right-turn
  * radius: with 3.5 m lanes the right-turn arc comes out at S + lw/2 = 7.75 m

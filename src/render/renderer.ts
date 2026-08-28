@@ -526,19 +526,20 @@ export class WorldRenderer {
 
   private pushHud(commands: DrawCommand[], scene: RenderScene): void {
     const hud = scene.hud;
-    const s = hud?.textScale ?? 1;
-    if (hud !== null) {
-      const fpsColor = hud.fps >= 55 ? HUD_GOOD_COLOR : hud.fps >= 30 ? HUD_OK_COLOR : HUD_BAD_COLOR;
-      commands.push({
-        kind: 'text',
-        layer: 'hud',
-        x: 12 * s,
-        y: 12 * s,
-        text: `FPS ${hud.fps.toFixed(0)} (${hud.frameMs.toFixed(1)} ms/frame)`,
-        color: fpsColor,
-        fontPx: HUD_FONT_PX * s,
-      });
-    }
+    // A null hud hides the readout entirely (the "Stats" chip): both lines,
+    // not just the FPS meter — the sim line is part of the same readout.
+    if (hud === null) return;
+    const s = hud.textScale ?? 1;
+    const fpsColor = hud.fps >= 55 ? HUD_GOOD_COLOR : hud.fps >= 30 ? HUD_OK_COLOR : HUD_BAD_COLOR;
+    commands.push({
+      kind: 'text',
+      layer: 'hud',
+      x: 12 * s,
+      y: 12 * s,
+      text: `FPS ${hud.fps.toFixed(0)} (${hud.frameMs.toFixed(1)} ms/frame)`,
+      color: fpsColor,
+      fontPx: HUD_FONT_PX * s,
+    });
     commands.push({
       kind: 'text',
       layer: 'hud',

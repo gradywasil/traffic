@@ -18,15 +18,45 @@ import type { DrawList } from './drawlist';
 const MONO_FONT = MONO_FONT_STACK;
 
 /**
+ * Canvas view (adapt pass): an optional uniform zoom about the world center
+ * (logical 640,360). The mobile canvas zooms so the E–W road runs edge to
+ * edge — the intersection, not the county, is the subject. `zoom: 1` (and
+ * omitting the view entirely) is the incumbent full-world frame.
+ */
+export interface CanvasView {
+  readonly zoom: number;
+}
+
+/** The 1280×720 logical → backing-store base scale for a laid-out canvas. */
+function baseScaleFor(canvas: HTMLCanvasElement): number {
+  const dpr = window.devicePixelRatio ?? 1;
+  const cssWidth = canvas.clientWidth || CANVAS_LOGICAL_WIDTH_PX;
+  return (cssWidth / CANVAS_LOGICAL_WIDTH_PX) * dpr;
+}
+
+/** Set the ctx transform for `scale` with the view zoom applied about center. */
+function applyViewTransform(ctx: CanvasRenderingContext2D, scale: number, zoom: number): void {
+  if (zoom === 1) {
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    return;
+  }
+  const cx = CANVAS_LOGICAL_WIDTH_PX / 2;
+  const cy = CANVAS_LOGICAL_HEIGHT_PX / 2;
+  ctx.setTransform(scale * zoom, 0, 0, scale * zoom, cx * scale * (1 - zoom), cy * scale * (1 - zoom));
+}
+
+/**
  * Size the canvas backing store for `devicePixelRatio` and return its 2-D
  * context (F1 contract). Honors the canvas's laid-out CSS box (task U2: the
  * control-panel layout sizes the canvas below 1280 CSS px) while keeping the
  * 1280×720 LOGICAL coordinate frame — the painter transform is
  * `cssWidth / logicalWidth × dpr`, so a 940 CSS px canvas renders the same
- * draw list proportionally smaller. Falls back to the full logical size when
- * the element has no laid-out box yet.
+ * draw list proportionally smaller. An optional `view` zooms the world about
+ * the logical center (mobile). Falls back to the full logical size when the
+ * element has no laid-out box yet.
  */
-export function configureCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
+export function configureCanvas(canvas: HTMLCanvasElement, view?: CanvasView): CanvasRenderingContext2D {
+  const zoom = view?.zoom ?? 1;
   const dpr = window.devicePixelRatio ?? 1;
   const cssWidth = canvas.clientWidth || CANVAS_LOGICAL_WIDTH_PX;
   const cssHeight = canvas.clientHeight || Math.round((cssWidth * CANVAS_LOGICAL_HEIGHT_PX) / CANVAS_LOGICAL_WIDTH_PX);
@@ -35,7 +65,7 @@ export function configureCanvas(canvas: HTMLCanvasElement): CanvasRenderingConte
   const scale = (cssWidth / CANVAS_LOGICAL_WIDTH_PX) * dpr;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable');
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  applyViewTransform(ctx, scale, zoom);
   return ctx;
 }
 
@@ -61,10 +91,25 @@ export function configureCanvasDPR(
   return ctx;
 }
 
-/** Execute a draw list onto a configured context, in order. */
-export function paintFrame(ctx: CanvasRenderingContext2D, commands: DrawList): void {
+/**
+ * Execute a draw list onto a configured context, in order. With a zoomed
+ * view, TEXT commands drop back to the unzoomed base transform: canvas text
+ * is HUD chrome anchored to the screen, not to the world (zooming it about
+ * the world center would fling the top-left readout off-canvas). Everything
+ * else — roads, cars, selection strokes — is world-anchored and zooms.
+ */
+export function paintFrame(ctx: CanvasRenderingContext2D, commands: DrawList, view?: CanvasView): void {
+  const zoom = view?.zoom ?? 1;
   for (const command of commands) {
-    paintCommand(ctx, command);
+    if (zoom !== 1 && command.kind === 'text') {
+      ctx.save();
+      const scale = baseScaleFor(ctx.canvas);
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      paintCommand(ctx, command);
+      ctx.restore();
+    } else {
+      paintCommand(ctx, command);
+    }
   }
 }
 
