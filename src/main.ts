@@ -7,6 +7,7 @@
  * resolves the DOM roots and starts.
  */
 import { bootApp } from './ui/app';
+import { showFatalError } from './ui/fatal-error';
 
 function requireCanvas(id: string): HTMLCanvasElement {
   const element = document.getElementById(id);
@@ -25,14 +26,29 @@ function requireElement(id: string): HTMLElement {
 }
 
 function main(): void {
-  bootApp({
-    canvas: requireCanvas('world'),
-    panelContainer: requireElement('controls'),
-    chartCanvas: requireCanvas('wait-chart'),
-    headlineContainer: requireElement('headline-stats'),
-    overlayContainer: requireElement('engineering-overlay'),
-    optimizerContainer: requireElement('optimizer'),
-  });
+  try {
+    bootApp({
+      canvas: requireCanvas('world'),
+      panelTopContainer: requireElement('controls-top'),
+      panelRestContainer: requireElement('controls-rest'),
+      chartCanvas: requireCanvas('wait-chart'),
+      headlineContainer: requireElement('headline-stats'),
+      overlayContainer: requireElement('engineering-overlay'),
+      optimizerContainer: requireElement('optimizer'),
+    });
+  } catch (error) {
+    // Harden: a boot failure (missing root, canvas context refused, …) must
+    // explain itself on the page — a blank night-black viewport is the one
+    // failure a cold portfolio visitor cannot interpret.
+    showFatalError(error, 'the application failed to start');
+  }
 }
+
+// Harden: every floating promise the app creates settles itself (the
+// optimizer's `settle` catches all); one that escapes nonetheless surfaces
+// here instead of vanishing into the console of a frozen page.
+window.addEventListener('unhandledrejection', (event) => {
+  showFatalError(event.reason, 'an unexpected background failure occurred');
+});
 
 main();

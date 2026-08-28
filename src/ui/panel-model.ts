@@ -88,7 +88,17 @@ export interface PanelSelectEvent {
   readonly laneIndex: number | null;
 }
 
-export type PanelEvent = PanelConfigEvent | PanelPauseEvent | PanelSpeedEvent | PanelSelectEvent;
+/**
+ * The draft changed WITHOUT applying (invalid edit kept for the user to fix,
+ * or an invalid draft fixed back to the applied config). Pure UI signal: the
+ * panel re-reads `issues` — without this event an invalid edit would change
+ * model state the DOM never shows (found in the polish pass).
+ */
+export interface PanelDraftEvent {
+  readonly type: 'draft-change';
+}
+
+export type PanelEvent = PanelConfigEvent | PanelPauseEvent | PanelSpeedEvent | PanelSelectEvent | PanelDraftEvent;
 
 export type PanelEventListener = (event: PanelEvent) => void;
 
@@ -489,12 +499,22 @@ export class PanelModel {
   /**
    * Validate the draft; if valid AND different from the applied config,
    * promote it and emit one `config-change` with the full new config.
-   * Invalid drafts are kept (user state) with issues exposed, never emitted.
+   * Invalid drafts are kept (user state) with issues exposed — and emit a
+   * `draft-change` so the panel renders them (and clears them when fixed).
    */
   private commit(): void {
+    const prevIssueCount = this.issuesState.length;
     this.issuesState = validateConfig(this.draftState);
-    if (this.issuesState.length > 0) return;
-    if (stableStringify(this.draftState) === stableStringify(this.appliedState)) return;
+    if (this.issuesState.length > 0) {
+      this.emit({ type: 'draft-change' });
+      return;
+    }
+    if (stableStringify(this.draftState) === stableStringify(this.appliedState)) {
+      // No config change, but a previously-flagged draft may just have been
+      // fixed — the issues list must clear.
+      if (prevIssueCount > 0) this.emit({ type: 'draft-change' });
+      return;
+    }
     this.appliedState = cloneConfig(this.draftState);
     this.emit({ type: 'config-change', config: this.appliedState });
   }

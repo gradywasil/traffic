@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-27T00:00:00.000Z",
+  "title": "Design System: Traffic Intersection Flow Simulator",
+  "extensions": {
+    "colorMeta": {
+      "night": { "role": "neutral", "displayName": "Night", "canonical": "#090b10", "tonalRamp": ["#090b10", "#0b0e14", "#10141c", "#1a212d", "#282d38", "#384359", "#5d687e", "#8b95a6"] },
+      "panel": { "role": "neutral", "displayName": "Panel Slate", "canonical": "#10141c", "tonalRamp": ["#0a0d13", "#10141c", "#16202e", "#1a212d", "#232a36", "#384359", "#6385b0", "#aeb9cb"] },
+      "accent": { "role": "primary", "displayName": "Instrument Blue", "canonical": "#6fb7ff", "tonalRamp": ["#0d2440", "#123459", "#1c4a7d", "#2f6bab", "#4a8dd4", "#6fb7ff", "#a3d1ff", "#d8ecff"] },
+      "error": { "role": "neutral", "displayName": "Error Coral", "canonical": "#ff7a7a", "tonalRamp": ["#3a1010", "#5a1a1a", "#7d2626", "#a63636", "#cc4d4d", "#ff7a7a", "#ffabab", "#ffdada"] },
+      "asphalt": { "role": "neutral", "displayName": "Asphalt Slate", "canonical": "#282d38", "tonalRamp": ["#12151c", "#1a1e26", "#282d38", "#3a4150", "#525b6e", "#7d879e", "#b3bcd0", "#e2e7f2"] },
+      "lamp-green": { "role": "tertiary", "displayName": "Lamp Green", "canonical": "#3fd158", "tonalRamp": ["#0a2e12", "#0f4a1d", "#16692b", "#218c3a", "#2fae48", "#3fd158", "#79e58c", "#c2f5cc"] },
+      "lamp-yellow": { "role": "tertiary", "displayName": "Lamp Yellow", "canonical": "#ffcf3f", "tonalRamp": ["#3d2f05", "#5c4709", "#7d600c", "#a67d12", "#cc9f22", "#ffcf3f", "#ffdf7c", "#fff0c4"] },
+      "lamp-red": { "role": "tertiary", "displayName": "Lamp Red", "canonical": "#ff5d5d", "tonalRamp": ["#3b0d0d", "#5c1515", "#821e1e", "#ad2b2b", "#d43e3e", "#ff5d5d", "#ff9b9b", "#ffd1d1"] },
+      "car-yielding": { "role": "tertiary", "displayName": "Yield Violet", "canonical": "#c77dff", "tonalRamp": ["#2a1140", "#3f1a5f", "#582580", "#7a37a6", "#9c4fc9", "#c77dff", "#dfaeff", "#f0d9ff"] },
+      "center-line": { "role": "secondary", "displayName": "Queue Amber (center line)", "canonical": "#e0b23f", "tonalRamp": ["#352807", "#4f3c0b", "#6d520e", "#8f6a13", "#b3861f", "#e0b23f", "#efc96e", "#f7e2ae"] }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Panel section headings (h2), 16px." },
+      "heading": { "displayName": "Heading", "purpose": "Sub-group headings (h3/h4): arms, phases, overlay groups." },
+      "label": { "displayName": "Label", "purpose": "Legends, field labels, table heads, hints — the panel workhorse." },
+      "value-mono": { "displayName": "Value (mono)", "purpose": "Every number, stat, readout, and all canvas text." },
+      "micro": { "displayName": "Micro", "purpose": "Badges only (BEST / CURRENT)." }
+    },
+    "shadows": [],
+    "motion": [],
+    "breakpoints": [
+      { "name": "target", "value": "1280px × 720px" },
+      { "name": "stage-wrap", "value": "~980px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Instrument Button",
+      "kind": "button",
+      "refersTo": "button-neutral",
+      "description": "Neutral action button — optimizer run/cancel/apply, pause.",
+      "html": "<button class=\"ds-btn\">Optimize</button>",
+      "css": ".ds-btn { font: inherit; color: var(--text, #d7dde8); background: #1a212d; border: 1px solid var(--panel-border, #232a36); border-radius: 5px; padding: 6px 10px; cursor: pointer; } .ds-btn:hover { border-color: #384359; } .ds-btn:focus-visible { outline: 2px solid var(--accent, #6fb7ff); outline-offset: 2px; } .ds-btn:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Pressed Toggle Button",
+      "kind": "button",
+      "refersTo": "button-pressed",
+      "description": "Toggle in its active state (aria-pressed) — accent border + accent text.",
+      "html": "<button class=\"ds-btn-pressed\" aria-pressed=\"true\">Paused</button>",
+      "css": ".ds-btn-pressed { font: inherit; color: var(--accent, #6fb7ff); background: #1a212d; border: 1px solid var(--accent, #6fb7ff); border-radius: 5px; padding: 6px 10px; cursor: pointer; } .ds-btn-pressed:focus-visible { outline: 2px solid var(--accent, #6fb7ff); outline-offset: 2px; }"
+    },
+    {
+      "name": "Slider Field",
+      "kind": "input",
+      "refersTo": "",
+      "description": "Range control with inline live value — the primary tuning instrument.",
+      "html": "<div class=\"ds-slider\"><label>Green — north/south <output>15 s</output></label><input type=\"range\" min=\"5\" max=\"40\" value=\"15\" /></div>",
+      "css": ".ds-slider { margin: 6px 0; } .ds-slider label { display: flex; justify-content: space-between; width: 100%; font-size: 12px; color: var(--text-dim, #8b95a6); } .ds-slider output { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--accent, #6fb7ff); } .ds-slider input[type='range'] { width: 100%; accent-color: var(--accent, #6fb7ff); margin: 4px 0 0; } .ds-slider input[type='range']:focus-visible { outline: 2px solid var(--accent, #6fb7ff); outline-offset: 2px; }"
+    },
+    {
+      "name": "Fieldset Group",
+      "kind": "card",
+      "refersTo": "",
+      "description": "The panel's grouping unit — hairline box, dim legend.",
+      "html": "<fieldset class=\"ds-fieldset\"><legend>Signal plan</legend><p class=\"ds-fieldset-body\">Grouped controls…</p></fieldset>",
+      "css": ".ds-fieldset { border: 1px solid var(--panel-border, #232a36); border-radius: 6px; margin: 0 0 12px; padding: 8px 10px 10px; } .ds-fieldset legend { font-size: 12px; color: var(--text-dim, #8b95a6); padding: 0 4px; } .ds-fieldset-body { margin: 0; font-size: 12px; color: var(--text, #d7dde8); }"
+    },
+    {
+      "name": "Stat Readout",
+      "kind": "custom",
+      "refersTo": "stat-value",
+      "description": "Headline metric — dim label inline-before accent mono value.",
+      "html": "<div class=\"ds-stat\"><span class=\"ds-stat-label\">avg wait</span><span class=\"ds-stat-value\">12.4 s</span></div>",
+      "css": ".ds-stat { white-space: nowrap; } .ds-stat-label { font-size: 12px; color: var(--text-dim, #8b95a6); margin-right: 6px; } .ds-stat-value { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 14px; color: var(--accent, #6fb7ff); }"
+    },
+    {
+      "name": "Arm Bar",
+      "kind": "custom",
+      "refersTo": "arm-bar-track",
+      "description": "Per-arm delay bar (engineering overlay) — length is the encoding, color never varies.",
+      "html": "<div class=\"ds-armbar\"><span class=\"ds-armbar-name\">North</span><span class=\"ds-armbar-track\"><span class=\"ds-armbar-fill\" style=\"width: 62%\"></span></span><span class=\"ds-armbar-value\">9.1 s</span></div>",
+      "css": ".ds-armbar { display: grid; grid-template-columns: 52px 1fr 72px; align-items: center; gap: 8px; font-size: 12px; } .ds-armbar-name { color: var(--text-dim, #8b95a6); } .ds-armbar-track { height: 10px; background: #1a212d; border: 1px solid var(--panel-border, #232a36); border-radius: 3px; overflow: hidden; } .ds-armbar-fill { display: block; height: 100%; background: var(--accent, #6fb7ff); border-radius: 2px; } .ds-armbar-value { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-align: right; color: var(--text, #d7dde8); }"
+    },
+    {
+      "name": "Optimizer Row (best)",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Ranked sweep result — best candidate tinted, accent badge; current plan uses a dashed accent outline instead.",
+      "html": "<div class=\"ds-optrow ds-optrow-best\"><span class=\"ds-optrow-rank\">1</span><span class=\"ds-optrow-greens\">5+26+5+7</span><span class=\"ds-badge ds-badge-best\">BEST</span><span class=\"ds-optrow-delta\">−81%</span></div>",
+      "css": ".ds-optrow { display: flex; align-items: center; gap: 10px; padding: 3px 8px; font-size: 12px; border-top: 1px solid var(--panel-border, #232a36); color: var(--text, #d7dde8); } .ds-optrow-best { background: #16233a; } .ds-optrow-rank { color: var(--text-dim, #8b95a6); } .ds-optrow-greens, .ds-optrow-delta { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; } .ds-badge { font-size: 10px; line-height: 1; padding: 2px 4px; border: 1px solid var(--panel-border, #232a36); border-radius: 3px; color: var(--text-dim, #8b95a6); } .ds-badge-best { border-color: var(--accent, #6fb7ff); color: var(--accent, #6fb7ff); }"
+    },
+    {
+      "name": "Lane Row (selected)",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Selected lane editor row — Selected Row tint + accent outline.",
+      "html": "<div class=\"ds-lanerow\"><span class=\"ds-lanerow-name\">Lane 1 — left / through</span></div>",
+      "css": ".ds-lanerow { display: flex; align-items: center; gap: 10px; margin: 4px 0; padding: 2px 4px; border-radius: 4px; background: #16202e; outline: 1px solid var(--accent, #6fb7ff); } .ds-lanerow-name { font-size: 12px; color: var(--text-dim, #8b95a6); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Night Control Room",
+    "overview": "The interface is a dark, instrument-lit control room for a single intersection. The chrome recedes into near-black slate so the simulation stays the brightest object on stage. One cool blue accent is the only voice the interface itself speaks: focus rings, selected values, the data line, selection highlights. Everything vivid beyond that belongs to the simulated world, not to the UI. The result reads as instrumented calm: quiet, precise, data-forward, nothing shouting. Discipline is the aesthetic: contrast ratios are pinned by tests, depth is tonal, state is expressed by line and color, never by motion or gloss.",
+    "keyCharacteristics": [
+      "Dark tonal ladder of near-black slate surfaces, separated by 1px hairlines",
+      "Exactly one UI accent (Instrument Blue) shared by interaction, selection, and data",
+      "Green/yellow/red reserved exclusively for signal semantics; amber means queue/attention",
+      "Monospace for every number; system sans for every word",
+      "Flat: zero shadows, zero gradients, zero transitions — state changes are instant",
+      "Contrast ratios test-pinned (palette.test.ts), with three documented sub-bar floors"
+    ],
+    "rules": [
+      { "name": "The Reserved Signal Rule", "body": "Green, yellow, and red appear only as signal semantics (lamps, stop signs, FPS health). The UI never uses them decoratively; success in chrome is Instrument Blue, not green.", "section": "colors" },
+      { "name": "The One Instrument Rule", "body": "One accent for interaction, selection, and data. If a screen needs a second UI color, the design is wrong — amber and violet exist only inside the simulation.", "section": "colors" },
+      { "name": "The Earned Contrast Rule", "body": "Sub-3:1 contrast is allowed only for the three documented floors (asphalt-vs-backdrop, signal-housing fill, chart gridlines). Every other text/graphic pair meets WCAG. New work must extend palette.test.ts, not argue exceptions.", "section": "colors" },
+      { "name": "The Numbers Are Mono Rule", "body": "Any glyph that is a measurement renders in the mono stack. Sans is for language; mono is for data. The two stacks are the entire type system.", "section": "typography" },
+      { "name": "The No-Shadow Rule", "body": "No shadows, ever — in DOM or canvas. If a new element feels like it needs one, it needs a lighter fill or an accent border instead.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do add every new color to src/ui/styles/palette.ts with its measured contrast ratio in the doc comment — the test-pinned audit is the system's source of authority.",
+      "Do express state with tonal steps, accent borders, or dashed-vs-solid lines.",
+      "Do keep every number in the mono stack at 12–14px with its label in 12px Text Dim.",
+      "Do reserve saturated color for the simulated world; chrome speaks slate + Instrument Blue."
+    ],
+    "donts": [
+      "Don't add shadows, gradients, glow, or transitions — the instant, flat, tonal response is the aesthetic.",
+      "Don't use green/yellow/red in the UI chrome; they mean signal state only.",
+      "Don't introduce a second UI accent.",
+      "Don't widen the type system — two stacks, five sizes, complete.",
+      "Don't compose below 1280×720 intent (pinned product constraint)."
+    ]
+  }
+}

@@ -80,6 +80,14 @@ export const CAR_BEHAVIOR_COLORS = {
 /** Dark outline around car bodies so adjacent queue members stay distinct. */
 export const CAR_STROKE_COLOR = rgba(CAR_STROKE, CAR_STROKE_ALPHA);
 
+/**
+ * Turn-signal lamp fill (delight pass): lit on the blink's lit half-cycle;
+ * the unlit housing reuses the car stroke so no new token is introduced.
+ * Signal-lamp yellow is licensed in-world semantics (a turn signal IS a
+ * signal lamp).
+ */
+export const TURN_SIGNAL_LAMP_COLOR = SIGNAL_LAMP_YELLOW;
+
 /** HUD text (FPS meter + sim readout). */
 export const HUD_TEXT_COLOR = rgba(HUD_TEXT, HUD_TEXT_ALPHA);
 export const HUD_GOOD_COLOR = HUD_GOOD;

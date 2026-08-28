@@ -66,6 +66,27 @@ export interface OptimizerModelOptions {
 // Results view model (pure mapping — display strings computed once)
 // ---------------------------------------------------------------------------
 
+/**
+ * One renderable piece of the sweep verdict sentence. `mono` marks numeric
+ * segments (The Numbers Are Mono Rule); `strong` marks the verdict label.
+ */
+export interface OptimizerVerdictSegment {
+  readonly text: string;
+  readonly mono: boolean;
+  readonly strong: boolean;
+}
+
+/** What the sweep concluded about the operator's current tuning. */
+export type OptimizerVerdictKind = 'confirmed' | 'sweep-wins' | 'unmeasured';
+
+/** The sweep's one-sentence judgment on the current plan (delight moment). */
+export interface OptimizerVerdict {
+  readonly kind: OptimizerVerdictKind;
+  /** Mean control delay rank 1 saves vs the current plan (null = unmeasured). */
+  readonly improvementSeconds: number | null;
+  readonly segments: readonly OptimizerVerdictSegment[];
+}
+
 /** One ranked plan, ready for the DOM (values verbatim from the report). */
 export interface OptimizerRowView {
   readonly rank: number;
@@ -89,13 +110,135 @@ export interface OptimizerResultsView {
   readonly reps: number;
   readonly horizonSeconds: number;
   readonly elapsedMs: number;
+  /** Live current-plan delay text (rebased to the plan actually running). */
   readonly currentDelayText: string | null;
-  readonly currentSpreadText: string | null;
-  readonly currentMeasuredLabel: string;
+  /** The summary line's "Current plan: …" clause, composed (pure). */
+  readonly currentLine: string;
+  readonly verdict: OptimizerVerdict;
+}
+
+/** Why there is (or is not) a measured baseline for the RUNNING plan. */
+export type VerdictCurrentInput =
+  | { readonly status: 'measured'; readonly meanSeconds: number }
+  | { readonly status: 'absent' }
+  | { readonly status: 'unmeasured' };
+
+/** The running plan's measured baseline, resolved against the report. */
+export interface ResolvedCurrentPlan {
+  readonly meanSeconds: number | null;
+  readonly stdDevSeconds: number | null;
+  readonly verdictInput: VerdictCurrentInput;
 }
 
 function formatSeconds(seconds: number): string {
   return `${seconds.toFixed(1)} s`;
+}
+
+/** Float-fuzz slack for "did any candidate actually beat the current plan?". */
+const VERDICT_TIE_EPSILON_SECONDS = 1e-9;
+
+const VERDICT_LABEL: OptimizerVerdictSegment = { text: 'Verdict — ', mono: false, strong: true };
+
+/**
+ * The sweep's judgment on the plan CURRENTLY RUNNING, in the product's
+ * deadpan register (the brief: the optimizer "confirms or embarrasses").
+ * `current` is resolved against the LIVE applied plan, so applying rank 1
+ * flips the verdict to confirmed. A tie (within float fuzz) counts as
+ * confirmed — nothing beat the plan.
+ */
+export function buildVerdict(
+  rank1MeanSeconds: number | null,
+  current: VerdictCurrentInput,
+): OptimizerVerdict {
+  if (rank1MeanSeconds === null) {
+    return unmeasured('no completed trips to judge: raise a spawn rate and sweep again.');
+  }
+  if (current.status === 'absent') {
+    return unmeasured('no signal plan is running: switch back from all-way stop, then sweep again.');
+  }
+  if (current.status === 'unmeasured') {
+    return unmeasured('the running plan is not in this sweep: sweep again to judge it.');
+  }
+  const improvement = current.meanSeconds - rank1MeanSeconds; // > 0 ⇒ the sweep found better
+  if (improvement <= VERDICT_TIE_EPSILON_SECONDS) {
+    return {
+      kind: 'confirmed',
+      improvementSeconds: improvement,
+      segments: [
+        VERDICT_LABEL,
+        { text: 'current plan confirmed: no swept candidate beat it on these seeds.', mono: false, strong: false },
+      ],
+    };
+  }
+  return {
+    kind: 'sweep-wins',
+    improvementSeconds: improvement,
+    segments: [
+      VERDICT_LABEL,
+      { text: 'rank 1 cuts mean control delay by ', mono: false, strong: false },
+      { text: formatSeconds(improvement), mono: true, strong: false },
+      { text: ' vs the current plan.', mono: false, strong: false },
+    ],
+  };
+}
+
+function unmeasured(sentence: string): OptimizerVerdict {
+  return {
+    kind: 'unmeasured',
+    improvementSeconds: null,
+    segments: [VERDICT_LABEL, { text: sentence, mono: false, strong: false }],
+  };
+}
+
+/**
+ * Resolve the RUNNING plan's measured baseline: the report row matching the
+ * applied greens, the sweep-time baseline when those greens are still
+ * current, or an explicit "not measured" when the plan changed off-lattice.
+ * `appliedGreens === null` means no signal plan is running (all-way stop).
+ */
+export function resolveCurrentPlan(
+  outcome: OptimizerSweepOutcome,
+  appliedGreens: readonly number[] | null,
+): ResolvedCurrentPlan {
+  if (appliedGreens === null) {
+    return { meanSeconds: null, stdDevSeconds: null, verdictInput: { status: 'absent' } };
+  }
+  const inReport = outcome.report.ranked.find((row) => greensEqual(row.candidate.greens, appliedGreens));
+  if (inReport !== undefined) {
+    return {
+      meanSeconds: inReport.meanControlDelaySeconds,
+      stdDevSeconds: inReport.sampleStdDevSeconds,
+      verdictInput:
+        inReport.meanControlDelaySeconds === null
+          ? { status: 'unmeasured' }
+          : { status: 'measured', meanSeconds: inReport.meanControlDelaySeconds },
+    };
+  }
+  if (greensEqual(outcome.current.greens, appliedGreens)) {
+    return {
+      meanSeconds: outcome.current.meanControlDelaySeconds,
+      stdDevSeconds: outcome.current.sampleStdDevSeconds,
+      verdictInput:
+        outcome.current.meanControlDelaySeconds === null
+          ? { status: 'unmeasured' }
+          : { status: 'measured', meanSeconds: outcome.current.meanControlDelaySeconds },
+    };
+  }
+  // Applied after the sweep (manual green edit): this plan has no number here.
+  return { meanSeconds: null, stdDevSeconds: null, verdictInput: { status: 'unmeasured' } };
+}
+
+/** The summary's "Current plan: …" clause from the resolved baseline. */
+function currentLineText(current: ResolvedCurrentPlan): string {
+  if (current.verdictInput.status === 'absent') return 'Current plan: none (all-way stop is running)';
+  if (current.meanSeconds === null) return 'Current plan: not measured in this sweep';
+  const bits = [formatSeconds(current.meanSeconds)];
+  if (current.stdDevSeconds !== null) bits.push(`± ${current.stdDevSeconds.toFixed(1)} s`);
+  const source =
+    current.verdictInput.status === 'unmeasured'
+      ? 'not measured in this sweep'
+      : 'measured on these seeds';
+  return `Current plan: ${bits.join(' ')} (${source})`;
 }
 
 function greensEqual(a: readonly number[], b: readonly number[]): boolean {
@@ -117,8 +260,11 @@ export function buildResultsView(
   appliedGreens: readonly number[] | null,
   elapsedMs: number,
 ): OptimizerResultsView {
-  const current = outcome.current;
-  const currentMean = current.meanControlDelaySeconds;
+  const rank1 = outcome.report.ranked[0] ?? null;
+  // The baseline is the plan RUNNING now, not the one the sweep started
+  // from — applying a candidate re-baselines every "vs current" number.
+  const live = resolveCurrentPlan(outcome, appliedGreens);
+  const currentMean = live.meanSeconds;
   const rows: OptimizerRowView[] = outcome.report.ranked.map((row) => {
     const mean = row.meanControlDelaySeconds;
     const isCurrent = appliedGreens !== null && greensEqual(row.candidate.greens, appliedGreens);
@@ -126,13 +272,15 @@ export function buildResultsView(
     if (!isCurrent && mean !== null && currentMean !== null) {
       const delta = mean - currentMean;
       const sign = delta >= 0 ? '+' : '';
-      deltaText = `${sign}${delta.toFixed(1)} s vs current`;
+      deltaText = `${sign}${delta.toFixed(1)} s`;
     }
     return {
       rank: row.rank,
       candidateId: row.candidate.id,
       greens: row.candidate.greens,
-      greensLabel: row.candidate.greens.join(' + '),
+      // Slash notation ("5/26/5/7") keeps a 4-phase label inside the row's
+      // greens column at the 340px panel (layout pass).
+      greensLabel: row.candidate.greens.join('/'),
       delayMeanSeconds: mean,
       delayText: mean === null ? '—' : formatSeconds(mean),
       spreadText: row.sampleStdDevSeconds === null ? null : `± ${row.sampleStdDevSeconds.toFixed(1)} s`,
@@ -150,10 +298,9 @@ export function buildResultsView(
     reps: outcome.report.reps,
     horizonSeconds: outcome.report.horizonSeconds,
     elapsedMs,
-    currentDelayText: currentMean === null ? null : formatSeconds(currentMean),
-    currentSpreadText: current.sampleStdDevSeconds === null ? null : `± ${current.sampleStdDevSeconds.toFixed(1)} s`,
-    currentMeasuredLabel:
-      current.measured === 'in-report' ? 'measured in sweep' : 'measured as extra paired runs',
+    currentDelayText: live.meanSeconds === null ? null : formatSeconds(live.meanSeconds),
+    currentLine: currentLineText(live),
+    verdict: buildVerdict(rank1?.meanControlDelaySeconds ?? null, live.verdictInput),
   };
 }
 

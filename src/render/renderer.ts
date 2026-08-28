@@ -38,9 +38,8 @@ import type { SignalColor } from '../sim/control/signal';
 import { f64At, i32At } from '../sim/store';
 import type { CarWorld } from '../sim/world';
 import { arrowGlyphToWorld, laneArrowGlyph } from './arrows';
-import { classifyCarBehavior } from './behavior';
-import type { CarBehavior } from './behavior';
-import {
+import { classifyCarBehavior, classifyTurnSignal, turnSignalLit } from './behavior';
+import type { CarBehavior } from './behavior';import {
   ARROW_COLOR,
   ASPHALT_COLOR,
   BACKGROUND_COLOR,
@@ -58,6 +57,7 @@ import {
   SIGNAL_LAMP_COLORS,
   STOP_SIGN_FILL,
   STOP_SIGN_STROKE,
+  TURN_SIGNAL_LAMP_COLOR,
 } from './colors';
 import type { DrawCommand, DrawList } from './drawlist';
 import { buildMarkings } from './markings';
@@ -90,6 +90,17 @@ const STOP_SIGN_RADIUS_PX = 6.2;
 const STOP_SIGN_STROKE_PX = 1.4;
 const HUD_FONT_PX = 14;
 
+// Turn-signal lamp geometry (logical px): a dark housing square sits at the
+// front and rear corner of the signaling side; the Lamp-Yellow fill lights
+// inside it on the blink's lit half-cycle. The housing ring is the legibility
+// budget (lit amber must separate from amber queue bodies), and the lamp
+// overhangs the body edge by a fraction of a pixel — the indicator "nub" of
+// a real car. Sub-3px lamps are axis-aligned; rotation is subpixel here.
+const TURN_LAMP_PX = 2.6;
+const TURN_HOUSING_PX = 4.2;
+const TURN_LAMP_ALONG_INSET_PX = 1.6;
+const TURN_LAMP_LATERAL_INSET_PX = 1.15;
+
 /** Signal-head anchor: lateral offset beyond the road edge (m). */
 const HEAD_LATERAL_METERS = 3.4;
 /** Signal-head anchor: longitudinal offset upstream of the stop line (m). */
@@ -107,6 +118,8 @@ export interface SceneCar {
   readonly lengthMeters: number;
   readonly speedMps: number;
   readonly behavior: CarBehavior;
+  /** Turn signal showing (within the approach/turn window), or null. */
+  readonly turnSignal: 'left' | 'right' | null;
 }
 
 export interface SceneHud {
@@ -116,7 +129,6 @@ export interface SceneHud {
 
 export interface RenderScene {
   readonly timeSeconds: number;
-  readonly tick: number;
   readonly controlType: 'signal' | 'all-way-stop';
   readonly cars: readonly SceneCar[];
   /** Per-movement-index signal indication; null under all-way stop. */
@@ -141,6 +153,22 @@ interface LaneHeadLayout {
 
 function toPx(points: readonly Vec2[]): Vec2[] {
   return points.map(worldToCanvas);
+}
+
+/** Tiny axis-aligned filled square centered at (x, y) — lamp housings/fills. */
+function squareCommand(x: number, y: number, sizePx: number, color: string): DrawCommand {
+  const half = sizePx / 2;
+  return {
+    kind: 'fillPolygon',
+    layer: 'cars',
+    points: [
+      { x: x - half, y: y - half },
+      { x: x + half, y: y - half },
+      { x: x + half, y: y + half },
+      { x: x - half, y: y + half },
+    ],
+    color,
+  };
 }
 
 export class WorldRenderer {
@@ -175,8 +203,10 @@ export class WorldRenderer {
     for (let i = 0; i < store.count; i += 1) {
       const entityId = i32At(store.entityId, i);
       const pathIndex = i32At(store.pathIndex, i);
+      const movement = itemAt(this.geometry.movements, pathIndex);
       const length = f64At(store.carLengthMeters, i);
       const speed = f64At(store.speed, i);
+      const s = f64At(store.s, i);
       const pose = world.carPose(i, alpha);
       const half = length / 2;
       cars.push({
@@ -194,6 +224,7 @@ export class WorldRenderer {
           stopControl: this.stopControl,
           isYieldLeft: itemAt(this.yieldLeftOfMovement, pathIndex),
         }),
+        turnSignal: classifyTurnSignal(movement.turn, s, movement.stopLineS, movement.curveEndS),
       });
     }
     const indications =
@@ -202,7 +233,6 @@ export class WorldRenderer {
         : null;
     return {
       timeSeconds: world.time,
-      tick: world.tick,
       controlType: this.stopControl ? 'all-way-stop' : 'signal',
       cars,
       indications,
@@ -430,6 +460,7 @@ export class WorldRenderer {
   }
 
   private pushCars(commands: DrawCommand[], scene: RenderScene): void {
+    const lampsLit = turnSignalLit(scene.timeSeconds);
     for (const car of scene.cars) {
       const center = worldToCanvas({ x: car.x, y: car.y });
       commands.push({
@@ -445,6 +476,42 @@ export class WorldRenderer {
         strokeColor: CAR_STROKE_COLOR,
         strokePx: 1,
       });
+      if (car.turnSignal !== null) {
+        this.pushTurnSignalLamps(commands, car, center, car.turnSignal, lampsLit);
+      }
+    }
+  }
+
+  /**
+   * Turn-signal lamps: a dark housing square at the front and rear corner of
+   * the signaling side (present whenever the car is signaling — the blink's
+   * dark half-cycle), with the Lamp-Yellow fill lit inside on the lit
+   * half-cycle. Left/right follows the geometry's own driver-side convention
+   * (`leftOf`/`rightOf` of the heading), so a left-turner blinks on its left.
+   */
+  private pushTurnSignalLamps(
+    commands: DrawCommand[],
+    car: SceneCar,
+    center: Vec2,
+    signal: 'left' | 'right',
+    lit: boolean,
+  ): void {
+    const side = signal === 'left' ? { x: car.hy, y: -car.hx } : { x: -car.hy, y: car.hx };
+    const halfLengthPx = (car.lengthMeters * PX_PER_METER) / 2;
+    const halfWidthPx = (CAR_WIDTH_METERS * PX_PER_METER) / 2;
+    for (const alongSign of [-1, 1]) {
+      const lampX =
+        center.x +
+        car.hx * (alongSign * (halfLengthPx - TURN_LAMP_ALONG_INSET_PX)) +
+        side.x * (halfWidthPx - TURN_LAMP_LATERAL_INSET_PX);
+      const lampY =
+        center.y +
+        car.hy * (alongSign * (halfLengthPx - TURN_LAMP_ALONG_INSET_PX)) +
+        side.y * (halfWidthPx - TURN_LAMP_LATERAL_INSET_PX);
+      commands.push(
+        squareCommand(lampX, lampY, TURN_HOUSING_PX, CAR_STROKE_COLOR),
+        ...(lit ? [squareCommand(lampX, lampY, TURN_LAMP_PX, TURN_SIGNAL_LAMP_COLOR)] : []),
+      );
     }
   }
 
@@ -467,7 +534,7 @@ export class WorldRenderer {
       layer: 'hud',
       x: 12,
       y: 32,
-      text: `sim ${scene.timeSeconds.toFixed(1)} s · tick ${String(scene.tick)} · cars ${String(scene.cars.length)} · ${scene.controlType}`,
+      text: `sim ${scene.timeSeconds.toFixed(1)} s · cars ${String(scene.cars.length)} · ${scene.controlType}`,
       color: HUD_TEXT_COLOR,
       fontPx: HUD_FONT_PX,
     });

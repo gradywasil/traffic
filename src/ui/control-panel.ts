@@ -76,7 +76,8 @@ interface LaneRowRefs {
 }
 
 interface ArmRefs {
-  readonly section: HTMLElement;
+  /** The collapsible arm section (details/summary — layout pass). */
+  readonly section: HTMLDetailsElement;
   readonly spawn: SliderRefs;
   readonly mix: Readonly<Record<TurnDirection, SliderRefs>>;
   readonly laneCount: HTMLSelectElement;
@@ -92,6 +93,7 @@ interface PlanRefs {
 export class ControlPanel {
   private readonly model: PanelModel;
   private readonly root: HTMLElement;
+  private readonly restRoot: HTMLElement;
 
   private readonly pauseButton: HTMLButtonElement;
   private readonly speedSelect: HTMLSelectElement;
@@ -107,24 +109,27 @@ export class ControlPanel {
   private idCounter = 0;
   private lastSelectionArm: ArmId | null = null;
   private lastSelectionLane: number | null = null;
+  /** Last (arm, lane) reveal; repeats are calm (no scroll/focus steal). */
+  private lastRevealKey = '';
+  /** Arms opened programmatically (their toggle must not re-select). */
+  private readonly programmaticOpens = new Set<ArmId>();
 
-  constructor(container: HTMLElement, model: PanelModel) {
+  constructor(container: HTMLElement, restContainer: HTMLElement, model: PanelModel) {
     this.model = model;
     container.textContent = '';
+    restContainer.textContent = '';
     this.root = container;
-
-    const heading = h('h2', undefined, 'Intersection controls');
-    this.root.append(heading);
+    this.restRoot = restContainer;
 
     // --- playback -----------------------------------------------------------
+    // (No panel-level title: the aside's aria-label and the group legends
+    // carry the structure — the panel IS controls, a heading would restate
+    // the obvious. Distill pass.)
     const playback = h('fieldset', 'playback-group');
     playback.append(h('legend', undefined, 'Playback'));
     this.pauseButton = h('button', 'pause-button', 'Pause');
     this.pauseButton.type = 'button';
     this.pauseButton.id = this.nextId('pause');
-    const pauseLabel = h('label');
-    pauseLabel.htmlFor = this.pauseButton.id;
-    pauseLabel.textContent = 'Simulation';
     this.pauseButton.addEventListener('click', () => this.model.togglePaused());
     this.speedSelect = h('select');
     this.speedSelect.id = this.nextId('speed');
@@ -145,8 +150,13 @@ export class ControlPanel {
     speedLabel.textContent = 'Speed';
     const speedWrap = h('div', 'inline-field');
     speedWrap.append(speedLabel, this.speedSelect);
-    playback.append(pauseLabel, this.pauseButton, speedWrap);
+    playback.append(this.pauseButton, speedWrap);
     this.root.append(playback);
+
+    // Task order (layout pass): the signal plan — the premise's named action —
+    // mounts directly under transport, above the optimizer that grades it.
+    this.planSection = h('fieldset', 'plan-group');
+    this.root.append(this.planSection);
 
     // --- preset --------------------------------------------------------------
     const preset = h('fieldset', 'preset-group');
@@ -167,13 +177,14 @@ export class ControlPanel {
         this.model.applyPreset(value);
       }
     });
-    const presetLabel = h('label');
+    // The legend names the group; the label stays associated but hidden —
+    // "Scenario preset" + "Preset" said the same thing twice.
+    const presetLabel = h('label', 'visually-hidden');
     presetLabel.htmlFor = this.presetSelect.id;
     presetLabel.textContent = 'Preset';
     preset.append(presetLabel, this.presetSelect);
-    this.root.append(preset);
 
-    // --- control type + signal plan ------------------------------------------
+    // --- control type ----------------------------------------------------------
     const control = h('fieldset', 'control-group');
     control.append(h('legend', undefined, 'Intersection control'));
     this.controlTypeSelect = h('select');
@@ -187,21 +198,16 @@ export class ControlPanel {
       const value = this.controlTypeSelect.value;
       if (value === 'signal' || value === 'all-way-stop') this.model.setControlType(value);
     });
-    const controlLabel = h('label');
+    const controlLabel = h('label', 'visually-hidden');
     controlLabel.htmlFor = this.controlTypeSelect.id;
     controlLabel.textContent = 'Control type';
     control.append(controlLabel, this.controlTypeSelect);
-    this.root.append(control);
 
-    this.planSection = h('fieldset', 'plan-group');
-    this.root.append(this.planSection);
-
-    // --- arms ----------------------------------------------------------------
+    // --- arms (below the optimizer mount — deep config, collapsed by default) --
     this.armsSection = h('fieldset', 'arms-group');
     this.armsSection.append(h('legend', undefined, 'Arms (approaches)'));
-    const hint = h('p', 'hint', 'Tip: click an arm or lane on the canvas to select and edit it here.');
+    const hint = h('p', 'hint', 'Tip: click an arm or lane on the canvas to open and edit it here.');
     this.armsSection.append(hint);
-    this.root.append(this.armsSection);
 
     // --- validation issues -----------------------------------------------------
     const issues = h('div', 'issues-group');
@@ -209,7 +215,8 @@ export class ControlPanel {
     this.issuesList.id = this.nextId('issues');
     this.issuesList.setAttribute('role', 'alert');
     issues.append(h('h3', undefined, 'Invalid edit — not applied'), this.issuesList);
-    this.root.append(issues);
+
+    this.restRoot.append(this.armsSection, control, preset, issues);
 
     this.rebuildArms();
     this.rebuildPlan();
@@ -230,6 +237,16 @@ export class ControlPanel {
   private revealSelection(arm: ArmId, laneIndex: number | null): void {
     const refs = this.armRefs.get(arm);
     if (refs === undefined) return;
+    // Repeats stay calm: re-selecting what is already revealed neither
+    // reopens (a user may be closing it) nor steals focus/scroll again.
+    const key = `${arm}:${laneIndex === null ? 'null' : String(laneIndex)}`;
+    if (refs.section.open && this.lastRevealKey === key) return;
+    this.lastRevealKey = key;
+    if (!refs.section.open) {
+      // The toggle event must not re-select (it was programmatic).
+      this.programmaticOpens.add(arm);
+      refs.section.open = true;
+    }
     refs.section.scrollIntoView({ block: 'nearest' });
     const focusTarget =
       laneIndex !== null && refs.laneRows[laneIndex] !== undefined
@@ -253,9 +270,14 @@ export class ControlPanel {
     // Structural rebuild when lane/plan structure changed.
     const signature = this.structureSignature();
     if (signature !== this.structureCache) {
+      // A designation edit rebuilds the lane rows the user is INSIDE —
+      // capture the focused checkbox and restore focus to its successor,
+      // so keyboard interaction survives the rebuild (polish pass).
+      const focusKey = this.focusedLaneCheckboxKey();
       this.structureCache = signature;
       this.rebuildArms();
       this.rebuildPlan();
+      this.refocusLaneCheckbox(focusKey);
     }
 
     // Values.
@@ -319,8 +341,33 @@ export class ControlPanel {
     }
   }
 
-  private structureSignature(): string {
-    const draft = this.model.draft;
+  /** (arm, laneIndex, boxIndex) of the focused lane checkbox, or null. */
+  private focusedLaneCheckboxKey(): { arm: ArmId; laneIndex: number; boxIndex: number } | null {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement) || active.type !== 'checkbox') return null;
+    const section = active.closest('.arm-section');
+    const row = active.closest('.lane-row');
+    if (section === null || row === null) return null;
+    const arm = section.getAttribute('data-arm');
+    if (arm !== 'north' && arm !== 'east' && arm !== 'south' && arm !== 'west') return null;
+    const laneIndex = [...section.querySelectorAll('.lane-row')].indexOf(row);
+    const boxIndex = [...row.querySelectorAll("input[type='checkbox']")].indexOf(active);
+    if (laneIndex < 0 || boxIndex < 0) return null;
+    return { arm, laneIndex, boxIndex };
+  }
+
+  /** Focus the successor of the pre-rebuild checkbox `key` identified (if any). */
+  private refocusLaneCheckbox(key: { arm: ArmId; laneIndex: number; boxIndex: number } | null): void {
+    if (key === null) return;
+    const turn = TURN_DIRECTIONS[key.boxIndex];
+    if (turn === undefined) return;
+    const refs = this.armRefs.get(key.arm);
+    const row = refs?.laneRows[key.laneIndex];
+    if (row === undefined) return; // the edit removed this lane row
+    row.boxes[turn]?.focus();
+  }
+
+  private structureSignature(): string {    const draft = this.model.draft;
     const phases = draft.control.type === 'signal' ? draft.control.plan.phases.map((phase) => phase.kind) : [];
     return JSON.stringify({
       control: draft.control.type,
@@ -367,19 +414,30 @@ export class ControlPanel {
 
   private rebuildArms(): void {
     const draft = this.model.draft;
+    // A designation edit rebuilds the rows the user is inside — carry the
+    // open state across, or the editor collapses mid-edit (polish pass).
+    const openByArm = new Map<string, boolean>();
+    for (const section of this.armsSection.querySelectorAll<HTMLDetailsElement>('details.arm-section')) {
+      openByArm.set(section.getAttribute('data-arm') ?? '', section.open);
+    }
     this.armRefs.clear();
-    const sections: HTMLElement[] = [];
+    const sections: HTMLDetailsElement[] = [];
     for (const arm of ARM_IDS) {
       const armConfig = draft.arms[arm];
-      const section = h('section', 'arm-section');
+      // Collapsed by default (layout pass): the summary selects the arm,
+      // canvas selection opens the editor. Native details/summary keeps it
+      // keyboard-operable and exposes expanded state to AT.
+      const section = h('details', 'arm-section') as HTMLDetailsElement;
       section.dataset.arm = arm;
+      if (openByArm.get(arm) === true) section.open = true;
+      section.addEventListener('toggle', () => {
+        if (this.programmaticOpens.delete(arm)) return;
+        if (section.open) this.model.select(arm);
+      });
 
-      const heading = h('h3');
-      const selectButton = h('button', 'arm-select-button', `${ARM_LABELS[arm]} arm`);
-      selectButton.type = 'button';
-      selectButton.addEventListener('click', () => this.model.select(arm));
-      heading.append(selectButton);
-      section.append(heading);
+      const summary = h('summary', 'arm-summary');
+      summary.append(h('h3', undefined, `${ARM_LABELS[arm]} arm`));
+      section.append(summary);
 
       const spawn = this.makeSlider(
         'Spawn rate',
@@ -432,7 +490,7 @@ export class ControlPanel {
       const laneRows: LaneRowRefs[] = [];
       armConfig.lanes.forEach((lane, laneIndex) => {
         const row = h('div', 'lane-row');
-        const name = h('span', 'lane-name', `Lane ${String(laneIndex + 1)}${laneIndex === 0 ? ' (leftmost)' : ''}`);
+        const name = h('span', 'lane-name', `Lane ${String(laneIndex + 1)}${laneIndex === 0 ? ' (left)' : ''}`);
         row.append(name);
         const boxes = {} as Record<TurnDirection, HTMLInputElement>;
         for (const turn of TURN_DIRECTIONS) {
@@ -501,7 +559,7 @@ export class ControlPanel {
     const note = h(
       'p',
       'hint',
-      'Yellow and all-red intervals are computed from geometry (research R1 §5.1) and are not editable.',
+      'Yellow and all-red intervals are computed from the intersection geometry and are not editable.',
     );
     this.planSection.append(cycleLine, note);
     this.planRefs = { section: this.planSection, greens, cycleOut };

@@ -163,15 +163,40 @@ describe('PanelModel — every config field editable from the UI model', () => {
 });
 
 describe('PanelModel — invalid edits are blocked or flagged', () => {
-  it('clearing a lane to zero designations is flagged and NOT applied', () => {
+  it('clearing a lane to zero designations is flagged, NOT applied, and ANNOUNCED (draft-change)', () => {
     const model = balancedModel();
     const before = model.config;
     const events = recordEvents(model);
     model.setDesignations('north', 0, []);
     expect(model.issues.length).toBeGreaterThan(0);
     expect(model.issues.some((issue) => issue.path === 'arms.north.lanes[0].designations')).toBe(true);
-    expect(events).toHaveLength(0);
+    // The panel must hear about the invalid draft to render the issues
+    // (polish pass: the model used to change state the DOM never showed).
+    expect(events).toHaveLength(1);
+    expect(events[0]?.type).toBe('draft-change');
     expect(model.config).toBe(before); // applied config unchanged
+  });
+
+  it('fixing an invalid draft back to the applied config clears issues (draft-change, no config-change)', () => {
+    const model = balancedModel();
+    const events = recordEvents(model);
+    // (0,80) applies; (1..3,80) are flagged (cycle > 180 s), draft kept.
+    for (const phase of [0, 1, 2, 3]) model.setGreenSeconds(phase, 80);
+    expect(model.issues.length).toBeGreaterThan(0);
+    // Undo the flagged edits in reverse: the last undo returns the draft
+    // EXACTLY to the applied config — issues clear, nothing re-applies.
+    for (const [phase, green] of [
+      [3, 14],
+      [2, 7],
+      [1, 15],
+    ] as const) {
+      model.setGreenSeconds(phase, green);
+    }
+    expect(model.issues).toEqual([]);
+    if (model.config.control.type !== 'signal') throw new Error('unreachable');
+    expect(model.config.control.plan.phases.map((p) => p.greenSeconds)).toEqual([80, 15, 7, 14]);
+    const undoEvents = events.slice(4); // after the four edits above
+    expect(undoEvents.every((e) => e.type === 'draft-change')).toBe(true);
   });
 
   it('positive probability for an unserved turn is flagged, not emitted', () => {
@@ -184,13 +209,13 @@ describe('PanelModel — invalid edits are blocked or flagged', () => {
     // Now push left to 100%: no lane serves it — flagged, not applied.
     model.setTurnMixPart('north', 'left', 1);
     expect(model.issues.some((issue) => issue.path === 'arms.north.turnMix.left')).toBe(true);
-    expect(events).toHaveLength(1);
+    expect(events).toHaveLength(2); // config-change + draft-change (flagged)
     // The draft keeps the user's editing state; fixing it emits the full config.
     model.setTurnMixPart('north', 'left', 0);
     expect(model.issues).toEqual([]);
-    expect(events).toHaveLength(2);
-    expect(events[1]?.type).toBe('config-change');
-    expect(validateConfig((events[1] as { config: IntersectionConfig }).config)).toEqual([]);
+    expect(events).toHaveLength(3);
+    expect(events[2]?.type).toBe('config-change');
+    expect(validateConfig((events[2] as { config: IntersectionConfig }).config)).toEqual([]);
   });
 
   it('green below g_min is prevented by clamping to the F2 floor', () => {
@@ -209,7 +234,7 @@ describe('PanelModel — invalid edits are blocked or flagged', () => {
     model.setGreenSeconds(2, 80);
     model.setGreenSeconds(3, 80);
     expect(model.issues.some((issue) => issue.path.startsWith('control.plan'))).toBe(true);
-    expect(events).toHaveLength(1); // only the first edit passed validation
+    expect(events).toHaveLength(4); // 1 applied + 3 flagged (draft-change each)
   });
 
   it('initial config must be valid (constructor guards)', () => {

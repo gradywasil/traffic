@@ -170,7 +170,7 @@ export class EngineeringOverlay {
 
     // Model-parameter read-out (config ModelParams + dt + lane width).
     const paramsHeading = document.createElement('h3');
-    paramsHeading.textContent = 'Model parameters (config, read-only)';
+    paramsHeading.textContent = 'Model parameters (read-only)';
     const paramsList = document.createElement('dl');
     paramsList.className = 'overlay-params';
     this.paramRows = Array.from({ length: PARAM_ROW_COUNT }, () => appendDescriptionRow(paramsList, '—'));

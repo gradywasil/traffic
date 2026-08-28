@@ -52,7 +52,7 @@ export class OptimizerPanel {
       h(
         'p',
         'hint',
-        'Sweeps green splits with paired-seed deterministic runs and ranks plans by mean control delay vs the current plan.',
+        'Sweeps green splits with paired-seed runs and ranks plans by mean control delay vs the current plan.',
       ),
     );
 
@@ -124,19 +124,21 @@ export class OptimizerPanel {
     const model = this.model;
     switch (model.phase) {
       case 'idle':
-        return model.startBlockedReason ?? 'Ready to sweep the current signal plan.';
+        // The invitation (onboard pass): the optimizer is the second half of
+        // the journey — hand-tune, then let the sweep grade it.
+        return model.startBlockedReason ?? 'Sweep when ready — the verdict grades the current plan.';
       case 'running': {
         const progress = model.progress;
         if (progress === null) return 'Running — preparing candidates…';
         return `Running — ${String(progress.completed)} / ${String(progress.total)} runs · ${formatElapsed(model.elapsedMs)}`;
       }
       case 'done': {
+        // Terse by design (distill): the verdict line carries the judgment,
+        // the summary carries the numbers — the status line only reports
+        // completion, so nothing is said twice.
         const results = model.results;
-        if (results === null) return 'Done.';
-        const best = results.rows.find((row) => row.isBest) ?? null;
-        const bestText = best !== null && best.delayMeanSeconds !== null ? best.delayText : 'unranked';
-        const currentText = results.currentDelayText ?? 'no trips';
-        return `Done in ${formatElapsed(results.elapsedMs)} — best ${bestText} vs current ${currentText} (${String(results.totalRuns)} runs, ${results.executorName}).`;
+        const elapsed = results === null ? '' : formatElapsed(results.elapsedMs);
+        return `Done in ${elapsed}.`;
       }
       case 'cancelled': {
         const completed = model.cancelledAfterCompleted;
@@ -153,32 +155,54 @@ export class OptimizerPanel {
     const container = this.resultsContainer;
     container.replaceChildren();
 
+    // The verdict leads the box: the sweep's one-sentence judgment on the
+    // operator's tuning, recomputed with every render (applying rank 1
+    // flips it to "confirmed" — the tuning loop's closing beat). It is the
+    // polite live region for the results: screen readers hear the judgment
+    // at completion and again when an apply re-baselines it.
+    const verdict = h('p', 'optimizer-verdict');
+    verdict.setAttribute('role', 'status');
+    verdict.setAttribute('aria-live', 'polite');
+    for (const segment of results.verdict.segments) {
+      if (segment.mono) {
+        verdict.append(h('span', 'optimizer-verdict-number', segment.text));
+      } else if (segment.strong) {
+        verdict.append(h('strong', undefined, segment.text));
+      } else {
+        verdict.append(segment.text);
+      }
+    }
+    container.append(verdict);
+
     const summary = h('p', 'optimizer-results-summary');
-    const currentBits = [results.currentDelayText ?? 'no trips'];
-    if (results.currentSpreadText !== null) currentBits.push(results.currentSpreadText);
     summary.append(
-      `Current plan: ${currentBits.join(' ')} (${results.currentMeasuredLabel}). `,
-      `Ranked candidates (${String(results.candidateCount)} plans · ${String(results.totalRuns)} runs · ${results.executorName} · ${formatElapsed(results.elapsedMs)}):`,
+      `${results.currentLine}. `,
+      `Ranked candidates (${String(results.candidateCount)} plans · ${String(results.totalRuns)} runs · ${formatElapsed(results.elapsedMs)}):`,
     );
     container.append(summary);
 
     const list = h('div', 'optimizer-rows');
     for (const row of results.rows) {
       const item = h('div', `optimizer-row${row.isBest ? ' best' : ''}${row.isCurrent ? ' current' : ''}`);
-
-      const head = h('span', 'optimizer-row-head');
-      const rank = h('span', 'optimizer-rank', `${String(row.rank)}.`);
-      const greens = h('span', 'optimizer-greens', row.greensLabel);
-      head.append(rank, greens);
-      if (row.isBest) head.append(h('span', 'optimizer-badge badge-best', 'Best'));
-      if (row.isCurrent) head.append(h('span', 'optimizer-badge badge-current', 'Current'));
-      item.append(head);
-
-      const metrics = h('span', 'optimizer-metrics', row.delayText);
-      if (row.spreadText !== null) metrics.append(` ${row.spreadText}`);
-      item.append(metrics);
-
-      item.append(h('span', 'optimizer-delta', row.deltaText ?? (row.isCurrent ? '—' : '')));
+      // One aligned grid row (layout pass): rank | greens | delay | delta | Apply.
+      // The columns share fixed tracks, so all rows scan as a table; the
+      // current plan's delta cell carries its badge instead (it IS the
+      // reference the deltas are measured against). Full context (spread,
+      // "vs current") lives on the row's accessible name.
+      item.setAttribute(
+        'aria-label',
+        `Rank ${String(row.rank)}: ${row.greensLabel} seconds of green — ${row.delayText} mean control delay` +
+          `${row.spreadText !== null ? `, ${row.spreadText}` : ''}` +
+          `${row.deltaText !== null ? `, ${row.deltaText} vs current` : ''}${row.isCurrent ? ', current plan' : ''}.`,
+      );
+      item.append(
+        h('span', 'optimizer-rank', `${String(row.rank)}.`),
+        h('span', 'optimizer-greens', row.greensLabel),
+        h('span', 'optimizer-metrics', row.delayText),
+        row.isCurrent
+          ? h('span', 'optimizer-badge badge-current', 'Current')
+          : h('span', 'optimizer-delta', row.deltaText ?? '—'),
+      );
 
       const apply = h('button', 'optimizer-apply-button', 'Apply');
       apply.type = 'button';

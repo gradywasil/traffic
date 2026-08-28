@@ -16,8 +16,8 @@ import type { SignalColor } from '../sim/control/signal';
 import { Spawner } from '../sim/spawn';
 import { createCarWorld } from '../sim/world';
 import type { CarWorld } from '../sim/world';
-import { classifyCarBehavior } from './behavior';
-import { CAR_BEHAVIOR_COLORS, SIGNAL_LAMP_COLORS } from './colors';
+import { classifyCarBehavior, classifyTurnSignal, TURN_SIGNAL_LEAD_METERS, turnSignalLit } from './behavior';
+import { CAR_BEHAVIOR_COLORS, CAR_STROKE_COLOR, SIGNAL_LAMP_COLORS, TURN_SIGNAL_LAMP_COLOR } from './colors';
 import { layerRank } from './drawlist';
 import type { DrawCommand } from './drawlist';
 import { arrowGlyphToWorld, laneArrowGlyph } from './arrows';
@@ -411,5 +411,101 @@ describe('scene behavior states appear in real runs (signal preset)', () => {
     });
     // And the classification is a pure read: rebuilding gives the same result.
     expect(renderer.buildScene(world, control, 0.5)).toEqual(scene);
+  });
+});
+
+// --- turn-signal lamps (delight pass: the world declares its intentions) -------
+
+describe('classifyTurnSignal (pure path-window derivation)', () => {
+  it('through cars never signal', () => {
+    expect(classifyTurnSignal('through', 50, 40, 55)).toBeNull();
+  });
+
+  it('left cars signal from the lead distance through the end of the turn', () => {
+    expect(classifyTurnSignal('left', 40, 40, 55)).toBe('left'); // at the stop line
+    expect(classifyTurnSignal('left', 40 - TURN_SIGNAL_LEAD_METERS, 40, 55)).toBe('left'); // window opens
+    expect(classifyTurnSignal('left', 40 - TURN_SIGNAL_LEAD_METERS - 0.01, 40, 55)).toBeNull(); // too far
+    expect(classifyTurnSignal('left', 55, 40, 55)).toBe('left'); // curve end, still turning
+    expect(classifyTurnSignal('left', 55.01, 40, 55)).toBeNull(); // straightened out — blinker off
+  });
+
+  it('right cars signal on the same window', () => {
+    expect(classifyTurnSignal('right', 30, 40, 50)).toBe('right');
+  });
+});
+
+describe('turnSignalLit (deterministic 1 Hz sim-time cadence)', () => {
+  it('is lit the first half of each sim second, dark the second', () => {
+    expect(turnSignalLit(0)).toBe(true);
+    expect(turnSignalLit(0.4999)).toBe(true);
+    expect(turnSignalLit(0.5)).toBe(false);
+    expect(turnSignalLit(0.9)).toBe(false);
+    expect(turnSignalLit(1.0)).toBe(true); // wraps
+  });
+});
+
+describe('draw-list frame: turn-signal lamps', () => {
+  // Heavy demand + turn mix ⇒ turning cars inside the signal window.
+  const { world, control, renderer } = pipeline(getPreset('gridlock-risk').config, 900); // 90 s
+  const scene = renderer.buildScene(world, control, 0.5);
+  const signalers = scene.cars.filter((car) => car.turnSignal !== null);
+
+  function lampSquares(frame: ReturnType<WorldRenderer['buildFrame']>, color: string) {
+    return frame.filter(
+      (command): command is Extract<DrawCommand, { kind: 'fillPolygon' }> =>
+        command.kind === 'fillPolygon' && command.layer === 'cars' && command.color === color,
+    );
+  }
+
+  it('real runs have turning cars inside the signal window', () => {
+    expect(signalers.length).toBeGreaterThan(0);
+    expect(signalers.every((car) => car.turnSignal === 'left' || car.turnSignal === 'right')).toBe(true);
+  });
+
+  it('emits one dark housing per signaling corner; lamps light only on the lit half-cycle', () => {
+    const lit = turnSignalLit(scene.timeSeconds);
+    const frame = renderer.buildFrame(scene);
+    const housings = lampSquares(frame, CAR_STROKE_COLOR);
+    const lamps = lampSquares(frame, TURN_SIGNAL_LAMP_COLOR);
+    // Two corners (front + rear) per signaling car, dark housings always.
+    expect(housings.length).toBe(2 * signalers.length);
+    expect(lamps.length).toBe(lit ? 2 * signalers.length : 0);
+  });
+
+  it('a left turner blinks on its left side (the geometry driver-side convention)', () => {
+    const frame = renderer.buildFrame(scene);
+    const housings = lampSquares(frame, CAR_STROKE_COLOR);
+    // Housings are emitted per car in scene order: pairs [rear, front].
+    let leftChecked = 0;
+    let rightChecked = 0;
+    signalers.forEach((car, k) => {
+      const center = worldToCanvas({ x: car.x, y: car.y });
+      for (const housing of [housings[2 * k], housings[2 * k + 1]]) {
+        if (housing === undefined) throw new Error('housing missing');
+        const centroid = housing.points.reduce((acc, p) => ({ x: acc.x + p.x / 4, y: acc.y + p.y / 4 }), { x: 0, y: 0 });
+        // Driver-left of heading (hy, -hx) — same relation the geometry's
+        // leftOf uses; canvas shares the world's orientation (uniform scale).
+        const lateral = (centroid.x - center.x) * car.hy - (centroid.y - center.y) * car.hx;
+        if (car.turnSignal === 'left') {
+          expect(lateral).toBeGreaterThan(0);
+          leftChecked += 1;
+        } else {
+          expect(lateral).toBeLessThan(0);
+          rightChecked += 1;
+        }
+      }
+    });
+    expect(leftChecked + rightChecked).toBe(2 * signalers.length);
+  });
+
+  it('the blink is a pure function of sim time (determinism, pause honesty)', () => {
+    const now = renderer.buildFrame(scene);
+    expect(renderer.buildFrame(scene)).toEqual(now); // same time ⇒ same frame
+    // Half a sim second later the lamps toggle, housings do not.
+    const later = renderer.buildFrame({ ...scene, timeSeconds: scene.timeSeconds + 0.5 });
+    const lampsBefore = lampSquares(now, TURN_SIGNAL_LAMP_COLOR).length;
+    const lampsAfter = lampSquares(later, TURN_SIGNAL_LAMP_COLOR).length;
+    expect(lampsAfter).not.toBe(lampsBefore);
+    expect(lampSquares(later, CAR_STROKE_COLOR).length).toBe(lampSquares(now, CAR_STROKE_COLOR).length);
   });
 });

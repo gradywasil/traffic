@@ -25,7 +25,7 @@ import type { HeadlessRunResult } from '../../optimizer';
 import { PanelModel } from '../panel-model';
 import type { PanelEvent } from '../panel-model';
 import { SimRuntime } from '../sim-runtime';
-import { buildResultsView, OptimizerModel } from './optimizer-model';
+import { buildResultsView, buildVerdict, OptimizerModel } from './optimizer-model';
 import type { OptimizerPhase } from './optimizer-model';
 import type { OptimizerSweepOutcome, OptimizerSweepService } from './sweep-service';
 
@@ -373,12 +373,12 @@ describe('buildResultsView — ranking display maps 1:1 to the sweep report', ()
     expect(best.isCurrent).toBe(false);
     expect(best.delayText).toBe('5.0 s');
     expect(best.spreadText).toBe('± 0.0 s');
-    expect(best.deltaText).toBe('-6.0 s vs current');
+    expect(best.deltaText).toBe('-6.0 s');
 
     expect(middle.candidateId).toBe('g:7+45');
     expect(middle.delayText).toBe('7.5 s');
     expect(middle.spreadText).toBe('± 0.7 s');
-    expect(middle.deltaText).toBe('-3.5 s vs current');
+    expect(middle.deltaText).toBe('-3.5 s');
 
     expect(current.candidateId).toBe('g:5+47');
     expect(current.isCurrent).toBe(true);
@@ -387,7 +387,7 @@ describe('buildResultsView — ranking display maps 1:1 to the sweep report', ()
     expect(current.deltaText).toBeNull(); // the current row carries the marker instead
 
     expect(view.currentDelayText).toBe('11.0 s');
-    expect(view.currentSpreadText).toBe('± 1.4 s');
+    expect(view.currentLine).toBe('Current plan: 11.0 s ± 1.4 s (measured on these seeds)');
     expect(view.candidateCount).toBe(3);
     expect(view.totalRuns).toBe(6);
     expect(view.executorName).toBe('scripted');
@@ -416,6 +416,134 @@ describe('buildResultsView — ranking display maps 1:1 to the sweep report', ()
     expect(marked.rows[0]?.isCurrent).toBe(true);
     const none = buildResultsView(outcome, null, 0);
     expect(none.rows.some((row) => row.isCurrent)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Verdict (the delight moment: the sweep judges the operator's tuning)
+// ---------------------------------------------------------------------------
+
+describe('buildVerdict — the sweep judgment', () => {
+  it('sweep-wins: rank 1 beats current; the sentence carries the mono improvement', async () => {
+    const config = createDefaultConfig();
+    const outcome = await scriptedOutcome(config, 3); // rank 1 → 5.0, current → 11.0
+    const view = buildResultsView(outcome, outcome.current.greens, 0);
+    expect(view.verdict.kind).toBe('sweep-wins');
+    expect(view.verdict.improvementSeconds).toBeCloseTo(6.0, 10);
+    expect(view.verdict.segments.map((s) => (s.mono ? `[${s.text}]` : s.text)).join('')).toBe(
+      'Verdict — rank 1 cuts mean control delay by [6.0 s] vs the current plan.',
+    );
+    // The label is the only strong segment; the number is the only mono one.
+    expect(view.verdict.segments.filter((s) => s.strong).map((s) => s.text)).toEqual(['Verdict — ']);
+    expect(view.verdict.segments.filter((s) => s.mono).map((s) => s.text)).toEqual(['6.0 s']);
+  });
+
+  it('confirmed: a current plan matching rank 1 is confirmed (dedicated-run tie)', async () => {
+    const config = createDefaultConfig();
+    const outcome = await scriptedOutcome(config, 3);
+    const rank1 = outcome.report.ranked[0];
+    if (rank1 === undefined) throw new Error('fixture rank 1 missing');
+    const tied: OptimizerSweepOutcome = {
+      report: outcome.report,
+      current: {
+        candidateId: 'g:dedicated',
+        greens: [99, 99],
+        meanControlDelaySeconds: rank1.meanControlDelaySeconds, // exact tie
+        varianceAcrossReps: rank1.varianceAcrossReps,
+        sampleStdDevSeconds: rank1.sampleStdDevSeconds,
+        measured: 'dedicated-run',
+      },
+    };
+    const view = buildResultsView(tied, tied.current.greens, 0);
+    expect(view.verdict.kind).toBe('confirmed');
+    expect(view.verdict.improvementSeconds).toBeLessThanOrEqual(0);
+    expect(view.verdict.segments.map((s) => s.text).join('')).toBe(
+      'Verdict — current plan confirmed: no swept candidate beat it on these seeds.',
+    );
+    expect(view.verdict.segments.some((s) => s.mono)).toBe(false); // no number to show
+  });
+
+  it('THE FLIP: applying rank 1 re-baselines the live plan and confirms the verdict', async () => {
+    const config = createDefaultConfig();
+    const outcome = await scriptedOutcome(config, 3);
+    // Before the apply: sweep-wins, deltas measured against the old plan.
+    const before = buildResultsView(outcome, outcome.current.greens, 0);
+    expect(before.verdict.kind).toBe('sweep-wins');
+    expect(before.rows[0]?.deltaText).toBe('-6.0 s');
+    // After the apply: the running plan IS rank 1 ([6, 46]).
+    const after = buildResultsView(outcome, [6, 46], 0);
+    expect(after.verdict.kind).toBe('confirmed');
+    expect(after.currentLine).toBe('Current plan: 5.0 s ± 0.0 s (measured on these seeds)');
+    // Deltas re-base to the new running plan: rank 2 now costs +2.5 s.
+    expect(after.rows[1]?.deltaText).toBe('+2.5 s');
+  });
+
+  it('an off-lattice manual edit verdicts honestly: the running plan is not in this sweep', async () => {
+    const config = createDefaultConfig();
+    const outcome = await scriptedOutcome(config, 3);
+    const view = buildResultsView(outcome, [40, 40], 0); // not a swept candidate
+    expect(view.verdict.kind).toBe('unmeasured');
+    expect(view.verdict.segments.map((s) => s.text).join('')).toBe(
+      'Verdict — the running plan is not in this sweep: sweep again to judge it.',
+    );
+    expect(view.currentLine).toBe('Current plan: not measured in this sweep');
+    expect(view.rows.some((row) => row.isCurrent)).toBe(false);
+    expect(view.rows.every((row) => row.deltaText === null)).toBe(true); // no number beats a wrong number
+  });
+
+  it('all-way stop (no signal plan running) names its own recovery', async () => {
+    const config = createDefaultConfig();
+    const outcome = await scriptedOutcome(config, 3);
+    const view = buildResultsView(outcome, null, 0);
+    expect(view.verdict.kind).toBe('unmeasured');
+    expect(view.verdict.segments.map((s) => s.text).join('')).toBe(
+      'Verdict — no signal plan is running: switch back from all-way stop, then sweep again.',
+    );
+    expect(view.currentLine).toBe('Current plan: none (all-way stop is running)');
+  });
+
+  it('confirmed: a current plan BETTER than rank 1 is still confirmed, not embarrassed', () => {
+    const verdict = buildVerdict(5, { status: 'measured', meanSeconds: 4 }); // current beats every swept candidate
+    expect(verdict.kind).toBe('confirmed');
+    expect(verdict.improvementSeconds).toBe(-1);
+  });
+
+  it('unmeasured: trip-less sweeps verdict to the recovery sentence, not a fake number', async () => {
+    const config = createDefaultConfig();
+    const candidates = fixtureCandidates(config, 3);
+    const delays = new Map<string, readonly (number | null)[]>(
+      candidates.map((candidate) => [candidate.id, [null, null]] as const),
+    );
+    const report = await runSweep(config, candidates, {
+      executor: new FixtureExecutor(delays),
+      reps: 2,
+      horizonSeconds: 10,
+    });
+    const outcome: OptimizerSweepOutcome = {
+      report,
+      current: {
+        candidateId: 'g:current',
+        greens: [99, 99],
+        meanControlDelaySeconds: null,
+        varianceAcrossReps: null,
+        sampleStdDevSeconds: null,
+        measured: 'dedicated-run',
+      },
+    };
+    const view = buildResultsView(outcome, null, 0);
+    expect(view.verdict.kind).toBe('unmeasured');
+    expect(view.verdict.improvementSeconds).toBeNull();
+    expect(view.verdict.segments.map((s) => s.text).join('')).toBe(
+      'Verdict — no completed trips to judge: raise a spawn rate and sweep again.',
+    );
+  });
+
+  it('pure function edges: float-fuzz ties confirm; every absent/unmeasured path unmeasures', () => {
+    expect(buildVerdict(5, { status: 'measured', meanSeconds: 5 + 1e-12 }).kind).toBe('confirmed'); // within fuzz
+    expect(buildVerdict(null, { status: 'measured', meanSeconds: 5 }).kind).toBe('unmeasured');
+    expect(buildVerdict(5, { status: 'absent' }).kind).toBe('unmeasured');
+    expect(buildVerdict(5, { status: 'unmeasured' }).kind).toBe('unmeasured');
+    expect(buildVerdict(5, { status: 'measured', meanSeconds: 5.05 }).kind).toBe('sweep-wins');
   });
 });
 

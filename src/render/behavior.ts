@@ -23,6 +23,7 @@
  *  4. `cruise` — everything else: free-flowing at speed (including granted
  *     cars accelerating from the line and cleared cars accelerating out).
  */
+import type { TurnDirection } from '../config';
 import type { ClaimPhase } from '../sim/control/claims';
 import { STOPPED_SPEED_MPS } from '../sim/control/constants';
 
@@ -61,4 +62,42 @@ export function classifyCarBehavior(input: BehaviorInput): CarBehavior {
     return 'braking-queue';
   }
   return 'cruise';
+}
+
+// --- turn-signal lamps (delight pass: the world declares its intentions) ------
+
+/**
+ * How far upstream of the stop line a turning car starts signaling (m) —
+ * the ~30 m a real driver signals before the intersection, at the canvas's
+ * scale the legible zone around the box.
+ */
+export const TURN_SIGNAL_LEAD_METERS = 28;
+
+/** Blink cadence in SIM time (s): 0.5 s lit / 0.5 s dark ⇒ 1 Hz in-world. */
+export const TURN_SIGNAL_PERIOD_SECONDS = 1;
+
+/**
+ * Whether turn-signal lamps are lit this frame — a pure function of sim
+ * time, so the draw list stays deterministic (same seed ⇒ same blinks) and
+ * a paused world holds its lamps honestly.
+ */
+export function turnSignalLit(timeSeconds: number): boolean {
+  return (timeSeconds % TURN_SIGNAL_PERIOD_SECONDS) < TURN_SIGNAL_PERIOD_SECONDS / 2;
+}
+
+/**
+ * Which turn signal (if any) a car is showing at path position `s`:
+ * turning cars signal from `TURN_SIGNAL_LEAD_METERS` before their stop line
+ * through the end of the turn curve, then stop (straightened out, blinker
+ * off). Through cars never signal. Pure — the renderer only paints what the
+ * path geometry already says.
+ */
+export function classifyTurnSignal(
+  turn: TurnDirection,
+  sMeters: number,
+  stopLineS: number,
+  curveEndS: number,
+): 'left' | 'right' | null {
+  if (turn !== 'left' && turn !== 'right') return null;
+  return sMeters >= stopLineS - TURN_SIGNAL_LEAD_METERS && sMeters <= curveEndS ? turn : null;
 }

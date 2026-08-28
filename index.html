@@ -3,7 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A deterministic, 60fps traffic intersection simulator — tune signal timing and watch measured control delay respond, then let a paired-seed sweep grade your plan. Hand-built with zero runtime dependencies; runs entirely in your browser."
+    />
     <title>Traffic Intersection Flow Simulator</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3.5' y='1' width='9' height='14' rx='2' fill='%23171b22' stroke='%235d687e'/%3E%3Ccircle cx='8' cy='4.4' r='1.7' fill='%23ff5d5d'/%3E%3Ccircle cx='8' cy='8' r='1.7' fill='%23ffcf3f'/%3E%3Ccircle cx='8' cy='11.6' r='1.7' fill='%233fd158'/%3E%3C/svg%3E"
+    />
     <style>
       :root {
         color-scheme: dark;
@@ -58,7 +66,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 8px;
+        padding: 6px;
         min-height: 320px;
       }
       #world {
@@ -66,7 +74,7 @@
         background: #0b0e14;
         /* 1280x720 logical frame, scaled to the laid-out box (painter sizes
            the backing store to match; never overlaps the panel). */
-        width: min(100%, calc((100vh - 16px) * 16 / 9));
+        width: min(100%, calc((100vh - 12px) * 16 / 9));
         aspect-ratio: 16 / 9;
         height: auto;
         cursor: pointer;
@@ -75,8 +83,8 @@
          canvas without taking width from it (the canvas is width-limited at
          1280x720, so a below-canvas card crowds nothing). */
       .metrics {
-        margin: 0 8px 8px;
-        padding: 8px 12px 10px;
+        margin: 0 8px 0;
+        padding: 6px 12px 8px;
         background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 6px;
@@ -85,7 +93,7 @@
         display: block;
         width: 100%;
         height: 110px;
-        margin-top: 6px;
+        margin-top: 4px;
         background: #0b0e14;
         border: 1px solid var(--panel-border);
         border-radius: 4px;
@@ -96,6 +104,12 @@
         flex-wrap: wrap;
         gap: 2px 22px;
         margin: 0;
+      }
+      .premise {
+        margin: 0 0 4px;
+        font-size: 12px;
+        line-height: 1.2;
+        color: var(--text-dim);
       }
       .stat {
         white-space: nowrap;
@@ -111,8 +125,12 @@
         color: var(--accent);
       }
       .overlay-toggle {
-        margin: 8px 0 0;
+        margin: 4px 0 0;
         font-size: 12px;
+      }
+      .overlay-body {
+        max-height: 340px;
+        overflow-y: auto;
       }
       .overlay-body h3 {
         font-size: 12px;
@@ -194,13 +212,15 @@
         box-sizing: border-box;
         max-height: 100vh;
         overflow-y: auto;
+        /* The panel is an independent scrolling region: its internal layout
+           (and its scrollable overflow) must never contribute to the page's
+           scroll geometry — without this, Chrome's flex line sizing leaks
+           the panel's content height into the document and breaks the
+           1280×720 no-scroll contract (found in the layout pass). */
+        contain: layout;
         padding: 12px 14px 24px;
         background: var(--panel-bg);
         border-left: 1px solid var(--panel-border);
-      }
-      #panel h2 {
-        font-size: 16px;
-        margin: 0 0 10px;
       }
       #panel fieldset {
         border: 1px solid var(--panel-border);
@@ -259,26 +279,51 @@
         justify-content: space-between;
         width: 100%;
       }
-      .mix-group h4,
-      .arm-section h3 {
+      .mix-group h4 {
         font-size: 13px;
         margin: 8px 0 4px;
       }
-      .arm-select-button {
-        font: inherit;
-        font-size: 13px;
-        color: inherit;
-        background: none;
-        border: none;
-        padding: 0;
+      /* Arms collapse to their headers (details/summary): the four-arm wall
+         yields to the task loop above; canvas/arm selection expands. The
+         state chevron is a drawn triangle — instant flip, no motion. */
+      .arm-summary {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         cursor: pointer;
-        text-decoration: underline dotted;
+        list-style: none;
+        padding: 2px 0;
+        user-select: none;
+      }
+      .arm-summary::-webkit-details-marker {
+        display: none;
+      }
+      .arm-summary::before {
+        content: '';
+        flex: 0 0 auto;
+        width: 0;
+        height: 0;
+        border-left: 4px solid var(--text-dim);
+        border-top: 3px solid transparent;
+        border-bottom: 3px solid transparent;
+      }
+      .arm-section[open] > .arm-summary::before {
+        border-left: 3px solid transparent;
+        border-right: 3px solid transparent;
+        border-top: 4px solid var(--text-dim);
+        border-bottom: none;
+      }
+      .arm-summary h3 {
+        font-size: 13px;
+        margin: 0;
       }
       .arm-section {
         border: 1px dashed transparent;
         border-radius: 6px;
         padding: 2px 6px;
-        margin: 4px -6px;
+        /* Between arms (8px) deliberately exceeds the within-arm rhythm
+           (6px) so four arms read as four groups, not one slider wall. */
+        margin: 8px -6px;
       }
       .arm-section.selected {
         border-color: var(--accent);
@@ -298,7 +343,7 @@
       }
       .lane-name {
         font-size: 12px;
-        min-width: 110px;
+        min-width: 64px;
         color: var(--text-dim);
       }
       .lane-turn-label {
@@ -312,6 +357,9 @@
         font-size: 12px;
         color: var(--text-dim);
         margin: 6px 0;
+      }
+      .issues-group {
+        margin: 0 0 12px;
       }
       .issues-group h3 {
         display: none;
@@ -379,12 +427,30 @@
         font-size: 12px;
         color: var(--text-dim);
       }
+      /* Delight: the sweep verdict — one deadpan sentence judging the
+         operator's tuning; numbers stay mono accent (the doctrine's only
+         voice for data), structure comes from the hairline below. */
+      .optimizer-verdict {
+        margin: 4px 8px 2px;
+        padding: 2px 0 8px;
+        font-size: 12px;
+        border-bottom: 1px solid var(--panel-border);
+      }
+      .optimizer-verdict strong {
+        font-weight: 600;
+      }
+      .optimizer-verdict-number {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: var(--accent);
+      }
       .optimizer-row {
-        display: flex;
+        display: grid;
+        /* Fixed tracks so every row's columns align: rank | greens | delay |
+           delta (or the Current badge) | Apply. */
+        grid-template-columns: 18px minmax(0, 1fr) 52px 52px auto;
         align-items: center;
-        flex-wrap: wrap;
-        gap: 4px 10px;
-        padding: 3px 8px;
+        column-gap: 3px;
+        padding: 3px 6px;
         font-size: 12px;
         border-top: 1px solid var(--panel-border);
       }
@@ -395,15 +461,9 @@
         outline: 1px dashed var(--accent);
         outline-offset: -1px;
       }
-      .optimizer-row-head {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        flex: 1 1 150px;
-        min-width: 0;
-      }
       .optimizer-rank {
         color: var(--text-dim);
+        text-align: right;
       }
       .optimizer-greens {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -417,10 +477,7 @@
         border-radius: 3px;
         color: var(--text-dim);
         white-space: nowrap;
-      }
-      .optimizer-row.best .badge-best {
-        border-color: var(--accent);
-        color: var(--accent);
+        justify-self: end;
       }
       .optimizer-row.current .badge-current {
         border-color: var(--accent);
@@ -430,6 +487,8 @@
       .optimizer-delta {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         white-space: nowrap;
+        text-align: right;
+        justify-self: end;
       }
       .optimizer-delta {
         color: var(--text-dim);
@@ -446,6 +505,80 @@
       .optimizer-apply-issue[hidden] {
         display: none;
       }
+      /* Harden: boot/loop failure notice + no-JavaScript message — the same
+         instrument voice as the issues list (panel surface, hairline, Error
+         red, no shadows/transitions). Errors name the problem and the
+         recovery. */
+      .boot-error {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 10;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 14px;
+        box-sizing: border-box;
+        padding: 10px 14px;
+        font-size: 13px;
+        background: var(--panel-bg);
+        border-bottom: 1px solid var(--panel-border);
+      }
+      .boot-error strong {
+        color: var(--error);
+        font-weight: 600;
+      }
+      .boot-error-detail {
+        flex: 1 1 240px;
+        min-width: 0;
+        font-size: 12px;
+        color: var(--text);
+        overflow-wrap: anywhere;
+      }
+      .boot-error button {
+        font: inherit;
+        font-size: 12px;
+        color: var(--text);
+        background: #1a212d;
+        border: 1px solid var(--panel-border);
+        border-radius: 5px;
+        padding: 4px 10px;
+        cursor: pointer;
+      }
+      /* Browser surfaces the chrome didn't draw (polish pass): scrollbars
+         and text selection come from the platform by default — theme them
+         from the ladder like every other surface. */
+      #panel,
+      .optimizer-results,
+      .overlay-body {
+        scrollbar-width: thin;
+        scrollbar-color: #232a36 transparent;
+      }
+      #panel::-webkit-scrollbar,
+      .optimizer-results::-webkit-scrollbar,
+      .overlay-body::-webkit-scrollbar {
+        width: 8px;
+      }
+      #panel::-webkit-scrollbar-thumb,
+      .optimizer-results::-webkit-scrollbar-thumb,
+      .overlay-body::-webkit-scrollbar-thumb {
+        background: #232a36;
+        border-radius: 4px;
+      }
+      #panel::-webkit-scrollbar-thumb:hover,
+      .optimizer-results::-webkit-scrollbar-thumb:hover,
+      .overlay-body::-webkit-scrollbar-thumb:hover {
+        background: #384359;
+      }
+      #panel::-webkit-scrollbar-track,
+      .optimizer-results::-webkit-scrollbar-track,
+      .overlay-body::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::selection {
+        background: rgba(111, 183, 255, 0.28);
+      }
       /* Visible focus for every interactive control (accessibility stance). */
       :focus-visible {
         outline: 2px solid var(--accent);
@@ -454,6 +587,15 @@
     </style>
   </head>
   <body>
+    <noscript>
+      <div class="boot-error" role="alert">
+        <strong>JavaScript is required.</strong>
+        <span class="boot-error-detail">
+          This simulator runs entirely in your browser — the simulation, the renderer, and the
+          charts are all computed locally, with no backend. Enable JavaScript and reload the page.
+        </span>
+      </div>
+    </noscript>
     <h1 class="visually-hidden">Traffic Intersection Flow Simulator</h1>
     <main class="stage">
       <div class="world-column">
@@ -466,6 +608,10 @@
         </div>
         <section class="metrics" aria-label="Live metrics">
           <h2 class="visually-hidden">Live metrics</h2>
+          <!-- The premise line: the one taught interaction — the aha action
+             (tweak a green, watch delay answer). Static by design: a caption
+             that is always true, not a tooltip to dismiss. -->
+          <p class="premise">Tune a green phase in the panel — the delay line answers.</p>
           <div id="headline-stats"></div>
           <canvas
             id="wait-chart"
@@ -476,10 +622,12 @@
         </section>
       </div>
       <aside id="panel" aria-label="Simulation controls">
-        <!-- U2 control panel (renders #controls) + O2 optimizer (renders
-             #optimizer): sibling containers so neither wipes the other. -->
-        <div id="controls"></div>
+        <!-- Task order (layout pass): transport + greens, then the optimizer
+             (the loop's end), then the deep config — arms, control type,
+             preset. Three mount points so the optimizer sits between. -->
+        <div id="controls-top"></div>
         <div id="optimizer"></div>
+        <div id="controls-rest"></div>
       </aside>
     </main>
     <script type="module" src="/src/main.ts"></script>

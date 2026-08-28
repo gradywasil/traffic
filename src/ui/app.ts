@@ -36,6 +36,7 @@ import { CANVAS_CENTER_PX, worldToCanvas } from '../geom';
 import { getPreset } from '../presets';
 import type { ArmId } from '../config';
 import { clientPointToLogicalPx, logicalPxToWorldMeters, pickArmLane } from './picking';
+import { showFatalError } from './fatal-error';
 import { OptimizerModel } from './optimizer/optimizer-model';
 import { OptimizerPanel } from './optimizer/optimizer-panel';
 import { createOptimizerSweepService } from './optimizer/sweep-service';
@@ -52,7 +53,10 @@ const SELECTION_WIDTH_PX = 2.5;
 
 export interface AppElements {
   readonly canvas: HTMLCanvasElement;
-  readonly panelContainer: HTMLElement;
+  /** Panel mount ABOVE the optimizer (transport + signal plan). */
+  readonly panelTopContainer: HTMLElement;
+  /** Panel mount BELOW the optimizer (arms, control type, preset, issues). */
+  readonly panelRestContainer: HTMLElement;
   /** U3: rolling avg-wait chart canvas (CSS-sized; DPR handled by the view). */
   readonly chartCanvas: HTMLCanvasElement;
   /** U3: headline text readout container. */
@@ -167,7 +171,9 @@ export function bootApp(elements: AppElements): void {
   });
 
   // The panel renders the model and forwards DOM input to model actions.
-  new ControlPanel(elements.panelContainer, model);
+  // Two mounts in task order: transport + greens above the optimizer,
+  // deep config below it (layout pass).
+  new ControlPanel(elements.panelTopContainer, elements.panelRestContainer, model);
   new OptimizerPanel(elements.optimizerContainer, optimizerModel);
 
   elements.canvas.addEventListener('click', (event) => {
@@ -182,8 +188,20 @@ export function bootApp(elements: AppElements): void {
     ctx = configureCanvas(elements.canvas);
   });
 
+  // Harden: a throwing frame means the simulation state is suspect — stop
+  // the loop and surface ONE honest notice (with the way out) instead of
+  // erroring every subsequent frame on the same corrupted state. The frozen
+  // world stays on screen under the notice, not blank.
+  let loopAlive = true;
   requestAnimationFrame(function frame(timestampMs: number): void {
-    playback.frame(timestampMs);
+    if (!loopAlive) return;
+    try {
+      playback.frame(timestampMs);
+    } catch (error) {
+      loopAlive = false;
+      showFatalError(error, 'the simulation loop failed');
+      return;
+    }
     requestAnimationFrame(frame);
   });
 }

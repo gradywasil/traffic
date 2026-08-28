@@ -299,16 +299,21 @@ describe('D1 accessibility audit: index.html structural checks', () => {
 
 describe('D1 accessibility audit: control-source checks (label association + live regions)', () => {
   it('control panel associates every native input with an explicit htmlFor label', () => {
-    // 7 label-bind sites in control-panel.ts: pause, speed, preset, control
-    // type, makeSlider (shared by spawn/mix/greens), lane count, lane checkbox.
+    // 6 label-bind sites in control-panel.ts: speed, preset, control type,
+    // makeSlider (shared by spawn/mix/greens), lane count, lane checkbox.
+    // The pause button needs no label — its text content ("Pause"/"Play")
+    // is its accessible name (distill: the old "Simulation" label restated
+    // the legend and named nothing new).
     const bindings = controlPanelSource.match(/\.htmlFor\s*=/g) ?? [];
-    expect(bindings.length).toBeGreaterThanOrEqual(7);
+    expect(bindings.length).toBeGreaterThanOrEqual(6);
     // Native control kinds: real range sliders, real checkboxes, real buttons
-    // (the arm picker is a button, not a clickable div).
+    // (the arm sections are native details/summary — keyboard-operable and
+    // expanded-state-exposing, layout pass).
     expect(controlPanelSource).toContain("input.type = 'range'");
     expect(controlPanelSource).toContain("box.type = 'checkbox'");
     expect(controlPanelSource).toContain("this.pauseButton.type = 'button'");
-    expect(controlPanelSource).toContain("h('button', 'arm-select-button'");
+    expect(controlPanelSource).toContain("h('details', 'arm-section')");
+    expect(controlPanelSource).toContain("h('summary', 'arm-summary')");
   });
 
   it('engineering overlay toggle is a labeled native checkbox', () => {
