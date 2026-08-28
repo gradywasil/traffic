@@ -32,7 +32,7 @@ import type { DrawCommand } from '../render/drawlist';
 import { SELECTION_ARM_COLOR, SELECTION_LANE_COLOR } from '../render/colors';
 import { configureCanvas, paintFrame } from '../render/painter';
 import { WorldRenderer } from '../render/renderer';
-import { CANVAS_CENTER_PX, worldToCanvas } from '../geom';
+import { CANVAS_CENTER_PX, CANVAS_LOGICAL_WIDTH_PX, worldToCanvas } from '../geom';
 import { getPreset } from '../presets';
 import type { ArmId } from '../config';
 import { clientPointToLogicalPx, logicalPxToWorldMeters, pickArmLane } from './picking';
@@ -69,6 +69,10 @@ export interface AppElements {
   readonly metricsPopover: HTMLElement;
   /** The popover's corner toggle chip on the canvas. */
   readonly metricsToggle: HTMLButtonElement;
+  /** Mobile deck (adapt pass): the docked panel's expand/collapse bar. */
+  readonly deckToggle: HTMLButtonElement;
+  /** The docked panel's scrollable body (wrapped for the deck layout). */
+  readonly deckBody: HTMLElement;
 }
 
 /** Rolling-window FPS meter (last ~2 s of frames), refreshed at 4 Hz (F1). */
@@ -122,9 +126,18 @@ export function bootApp(elements: AppElements): void {
       runtime.step();
     },
     render: (alpha, frameDt) => {
+      // HUD text stays a constant CSS-pixel size as the canvas shrinks
+      // (adapt pass): the painter scales the 1280-logical frame to the
+      // laid-out box, so the readout's font and insets are pre-multiplied
+      // by the inverse scale — capped so a tiny canvas never grows a
+      // billboard. On desktop windows this holds ~14 CSS px (it used to
+      // drift with window width).
+      const cssWidth = elements.canvas.clientWidth || CANVAS_LOGICAL_WIDTH_PX;
+      const textScale = Math.min(3.2, CANVAS_LOGICAL_WIDTH_PX / Math.max(1, cssWidth));
       const commands = renderer.frame(runtime.world, runtime.control, alpha, {
         fps: meter.fps,
         frameMs: meter.frameMs,
+        textScale,
       });
       paintFrame(ctx, appendSelectionHighlight(commands, runtime, model));
       meter.push(frameDt);
@@ -196,6 +209,30 @@ export function bootApp(elements: AppElements): void {
     elements.metricsPopover.toggleAttribute('hidden', !open);
     elements.metricsToggle.setAttribute('aria-pressed', String(open));
   });
+
+  // Mobile deck (adapt pass): in the portrait composition the panel docks
+  // behind a "Controls" bar; the bar toggles the docked body. Default
+  // closed — the first viewport is the taught scene (world + metrics), and
+  // the bar is the invitation to tune. The query mirrors the stylesheet's
+  // composition switch; outside it (desktop, landscape) the body is simply
+  // in flow, so the toggle stands down and any hidden state is cleared.
+  const deckQuery = window.matchMedia('(max-width: 980px) and (orientation: portrait)');
+  let deckOpen = false;
+  const applyDeckState = (): void => {
+    if (deckQuery.matches) {
+      elements.deckBody.toggleAttribute('hidden', !deckOpen);
+      elements.deckToggle.setAttribute('aria-expanded', String(deckOpen));
+    } else {
+      elements.deckBody.removeAttribute('hidden');
+      elements.deckToggle.setAttribute('aria-expanded', 'true');
+    }
+  };
+  elements.deckToggle.addEventListener('click', () => {
+    deckOpen = !deckOpen;
+    applyDeckState();
+  });
+  deckQuery.addEventListener('change', applyDeckState);
+  applyDeckState();
 
   window.addEventListener('resize', () => {
     ctx = configureCanvas(elements.canvas);

@@ -45,6 +45,8 @@ function main(): void {
       optimizerContainer: requireElement('optimizer'),
       metricsPopover: requireElement('metrics-popover'),
       metricsToggle: requireButton('metrics-toggle'),
+      deckToggle: requireButton('deck-toggle'),
+      deckBody: requireElement('deck-body'),
     });
   } catch (error) {
     // Harden: a boot failure (missing root, canvas context refused, …) must

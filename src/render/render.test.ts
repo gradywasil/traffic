@@ -319,6 +319,14 @@ describe('draw-list frame: signal preset (balanced)', () => {
     expect(again).toEqual(commands);
   });
 
+  it('scales ONLY the HUD when textScale is set: every non-hud command is identical', () => {
+    const strip = (list: readonly DrawCommand[]) => list.filter((command) => command.layer !== 'hud');
+    const scaled = renderer.buildFrame(
+      renderer.buildScene(world, control, alpha, { fps: 60, frameMs: 16.7, textScale: 2.5 }),
+    );
+    expect(strip(scaled)).toEqual(strip(commands));
+  });
+
   it('keeps every emitted point inside the 1280×720 logical canvas', () => {
     for (const command of commands) {
       if (command.kind === 'fillPolygon' || command.kind === 'strokePolyline') {
@@ -339,10 +347,48 @@ describe('draw-list frame: signal preset (balanced)', () => {
   });
 });
 
+describe('HUD text scale (adapt pass: constant CSS-pixel readout on shrunken canvases)', () => {
+  const { world, control, renderer } = pipeline(getPreset('balanced').config, 60);
+
+  const hudTexts = (list: readonly DrawCommand[]): Extract<DrawCommand, { kind: 'text' }>[] =>
+    list.filter(
+      (command): command is Extract<DrawCommand, { kind: 'text' }> => command.kind === 'text' && command.layer === 'hud',
+    );
+
+  const frameWith = (textScale?: number): readonly DrawCommand[] =>
+    renderer.buildFrame(
+      renderer.buildScene(world, control, 0.5, textScale === undefined ? { fps: 60, frameMs: 16.7 } : { fps: 60, frameMs: 16.7, textScale }),
+    );
+
+  it('without textScale the desktop frame is unchanged: 14 px HUD at the 12/32 px insets', () => {
+    const texts = hudTexts(frameWith());
+    expect(texts).toHaveLength(2);
+    for (const text of texts) {
+      expect(text.fontPx).toBe(14);
+      expect(text.x).toBe(12);
+    }
+    expect(texts[0]?.y).toBe(12);
+    expect(texts[1]?.y).toBe(32);
+  });
+
+  it('textScale multiplies font and insets together — a 378 px canvas keeps the readout legible', () => {
+    const base = hudTexts(frameWith());
+    const scaled = hudTexts(frameWith(2.5));
+    expect(scaled).toHaveLength(2);
+    scaled.forEach((text, i) => {
+      const reference = base[i];
+      if (reference === undefined) return;
+      expect(text.fontPx).toBeCloseTo(reference.fontPx * 2.5, 9);
+      expect(text.x).toBeCloseTo(reference.x * 2.5, 9);
+      expect(text.y).toBeCloseTo(reference.y * 2.5, 9);
+      expect(text.text).toBe(reference.text);
+    });
+  });
+});
+
 describe('draw-list frame: all-way-stop preset', () => {
   const { world, control, renderer } = pipeline(allWayStopConfig(), 300); // 30 s
-  const scene = renderer.buildScene(world, control, 0.5);
-  const commands = renderer.buildFrame(scene);
+  const scene = renderer.buildScene(world, control, 0.5);  const commands = renderer.buildFrame(scene);
 
   it('draws exactly four stop-sign octagons (one per arm) and no signal lamps', () => {
     const controlLayer = commands.filter((c) => c.layer === 'control');

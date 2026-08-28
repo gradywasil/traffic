@@ -188,4 +188,16 @@ describe('buildChartFrame — structure', () => {
     expect(seriesPolylines(commands)).toEqual([]);
     expect(commands.some((c) => c.kind === 'fillCircle' && c.color === CHART_LINE_COLOR)).toBe(true);
   });
+
+  it('narrow (mobile-card) charts drop the title window suffix so it cannot clip', () => {
+    const wide = texts(
+      buildChartFrame({ points: pointsOf([1]), timeSeconds: 1, windowSeconds: 180, widthPx: 640, heightPx: 120 }),
+    );
+    const narrow = texts(
+      buildChartFrame({ points: pointsOf([1]), timeSeconds: 1, windowSeconds: 180, widthPx: 330, heightPx: 120 }),
+    );
+    expect(wide).toContain('Average wait — control delay (s), last 3:00');
+    expect(narrow).toContain('Avg wait — control delay (s)');
+    expect(narrow).not.toContain('Average wait');
+  });
 });

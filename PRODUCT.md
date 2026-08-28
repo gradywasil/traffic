@@ -28,7 +28,8 @@ Traffic-engineer-honest metrics on a from-scratch simulation: control delay meas
 ## Operating Context
 
 - Hosted at `https://traffic.graydonwasil.com` — GitHub Pages deployed by Actions on push to `main`; DNS on Cloudflare. Repo: `Arrangedgodly/traffic`.
-- Desktop evergreen browsers (latest-2), mouse + keyboard, ≥1280×720 viewport. Touch and mobile are explicitly out of scope.
+- Desktop evergreen browsers (latest-2), mouse + keyboard, ≥1280×720 viewport.
+- Mobile is in scope (owner decision 2026-08-28, adapt pass): phones and tablets get **full parity** — every control, the optimizer, and arm/lane editing work on touch. Portrait uses a docked-deck composition (world + metrics on top, controls docked at the bottom); landscape scrolls; desktop is unchanged.
 - Single-user, session-only: nothing persists, nothing leaves the browser, no backend, no telemetry.
 - Dev: `npm run dev`; build + typecheck: `npm run build`; full suite: `npm test`.
 
@@ -46,7 +47,7 @@ Confirmed functionality:
 
 Constraints: 60fps with 150+ concurrent cars; zero runtime dependencies; no backend/persistence.
 
-**Parked ideas — not commitments** (owner decision 2026-08-28): pedestrians/bikes, multi-intersection networks, actuated signals, save/share URLs, mobile support. The single-intersection simulator is the product.
+**Parked ideas — not commitments** (owner decision 2026-08-28; mobile support unparked the same day): pedestrians/bikes, multi-intersection networks, actuated signals, save/share URLs. The single-intersection simulator is the product.
 
 ## Brand Commitments
 
@@ -72,4 +73,4 @@ Absences future work must not fabricate: no real-world usage data, no testimonia
 
 ## Accessibility & Inclusion
 
-All controls are real DOM inputs, labeled, keyboard-operable; the palette is WCAG contrast-audited (record: `docs/ultron/production-log.md`, T-D1); live stats are exposed as text. Desktop-only scope is an explicit constraint of this product, not an oversight.
+All controls are real DOM inputs, labeled, keyboard-operable; the palette is WCAG contrast-audited (record: `docs/ultron/production-log.md`, T-D1); live stats are exposed as text. Touch targets meet 44px minimums on coarse pointers, and canvas HUD text holds a constant CSS-pixel size on shrunken canvases (test-pinned via the renderer suite).

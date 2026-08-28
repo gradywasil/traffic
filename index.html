@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#090b10" />
     <meta
       name="description"
       content="A deterministic, 60fps traffic intersection simulator — tune signal timing and watch measured control delay respond, then let a paired-seed sweep grade your plan. Hand-built with zero runtime dependencies; runs entirely in your browser."
@@ -74,8 +75,10 @@
         display: block;
         background: #0b0e14;
         /* 1280x720 logical frame, scaled to the laid-out box (painter sizes
-           the backing store to match; never overlaps the panel). */
+           the backing store to match; never overlaps the panel). dvh keeps
+           the cap honest under mobile browser chrome. */
         width: min(100%, calc((100vh - 12px) * 16 / 9));
+        width: min(100%, calc((100dvh - 12px) * 16 / 9));
         aspect-ratio: 16 / 9;
         height: auto;
         cursor: pointer;
@@ -251,6 +254,15 @@
         padding: 12px 14px 24px;
         background: var(--panel-bg);
         border-left: 1px solid var(--panel-border);
+      }
+      /* Mobile deck (adapt pass) — desktop default: no bar, and the wrapper
+         contributes no box of its own, so the three mounts flow inside #panel
+         exactly as they did before the wrapper existed. */
+      .deck-bar {
+        display: none;
+      }
+      #deck-body {
+        display: contents;
       }
       #panel fieldset {
         border: 1px solid var(--panel-border);
@@ -582,33 +594,38 @@
       #panel,
       .metrics,
       .optimizer-results,
-      .overlay-body {
+      .overlay-body,
+      #deck-body {
         scrollbar-width: thin;
         scrollbar-color: #232a36 transparent;
       }
       #panel::-webkit-scrollbar,
       .metrics::-webkit-scrollbar,
       .optimizer-results::-webkit-scrollbar,
-      .overlay-body::-webkit-scrollbar {
+      .overlay-body::-webkit-scrollbar,
+      #deck-body::-webkit-scrollbar {
         width: 8px;
       }
       #panel::-webkit-scrollbar-thumb,
       .metrics::-webkit-scrollbar-thumb,
       .optimizer-results::-webkit-scrollbar-thumb,
-      .overlay-body::-webkit-scrollbar-thumb {
+      .overlay-body::-webkit-scrollbar-thumb,
+      #deck-body::-webkit-scrollbar-thumb {
         background: #232a36;
         border-radius: 4px;
       }
       #panel::-webkit-scrollbar-thumb:hover,
       .metrics::-webkit-scrollbar-thumb:hover,
       .optimizer-results::-webkit-scrollbar-thumb:hover,
-      .overlay-body::-webkit-scrollbar-thumb:hover {
+      .overlay-body::-webkit-scrollbar-thumb:hover,
+      #deck-body::-webkit-scrollbar-thumb:hover {
         background: #384359;
       }
       #panel::-webkit-scrollbar-track,
       .metrics::-webkit-scrollbar-track,
       .optimizer-results::-webkit-scrollbar-track,
-      .overlay-body::-webkit-scrollbar-track {
+      .overlay-body::-webkit-scrollbar-track,
+      #deck-body::-webkit-scrollbar-track {
         background: transparent;
       }
       ::selection {
@@ -618,6 +635,241 @@
       :focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 2px;
+      }
+      /* ===== Mobile adaptation (adapt pass) ===== */
+      /* Touch feedback: a pressed control steps one rung up the tonal ladder
+         — instant color state, per doctrine (never motion). */
+      .pause-button:active,
+      #metrics-toggle:active,
+      .optimizer-run-button:active,
+      .optimizer-cancel-button:active,
+      .optimizer-apply-button:active,
+      #deck-toggle:active,
+      .arm-summary:active {
+        background: #232a36;
+      }
+      /* Coarse pointers (touch): 44px minimum targets everywhere, 16px
+         control text (a smaller computed font-size makes Mobile Safari zoom
+         the whole page when a control takes focus), and no double-tap-zoom
+         delay. */
+      @media (pointer: coarse) {
+        html {
+          -webkit-tap-highlight-color: transparent;
+        }
+        body {
+          touch-action: manipulation;
+        }
+        select,
+        input {
+          font-size: 16px;
+        }
+        .pause-button,
+        .optimizer-run-button,
+        .optimizer-cancel-button,
+        .optimizer-apply-button,
+        #metrics-toggle,
+        #deck-toggle,
+        select,
+        .slider-field,
+        .lane-row,
+        .arm-summary,
+        .inline-field {
+          min-height: 44px;
+        }
+        input[type='range'] {
+          height: 32px;
+        }
+        input[type='checkbox'] {
+          width: 20px;
+          height: 20px;
+        }
+        /* The label is part of the checkbox's hit area (htmlFor). */
+        .lane-turn-label {
+          padding: 10px 8px 10px 4px;
+        }
+      }
+      /* Portrait phones and tablets (< 980px): the docked-deck composition.
+         One 100dvh column — world on top, metrics in flow beneath it (never
+         a popover over a six-inch canvas), controls docked at the bottom
+         behind a persistent bar. World and headline stay visible while the
+         deck is open, so the premise (tune a green, watch delay answer)
+         survives the small screen. The page itself never scrolls. */
+      @media (max-width: 980px) and (orientation: portrait) {
+        .stage {
+          flex-direction: column;
+          flex-wrap: nowrap;
+          height: 100vh;
+          height: 100dvh;
+          min-height: 0;
+          overflow-y: auto;
+        }
+        .world-column {
+          flex: 1 1 auto;
+          min-height: 0;
+        }
+        /* The wrap is a flex ROW on desktop (canvas centered, popover
+           absolute). In the column composition it becomes a column itself so
+           the canvas stacks over the in-flow metrics card — the card is
+           nested here, not in .world-column, and a row would park it beside
+           the canvas. */
+        .canvas-wrap {
+          flex: 1 1 auto;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          padding: 6px 6px 0;
+        }
+        #world {
+          width: 100%;
+          flex: none;
+        }
+        /* The card is in flow under the canvas, so its toggle chip flows
+           too — a small pill on the seam line, not a floating corner. */
+        #metrics-toggle {
+          position: static;
+          align-self: flex-start;
+          margin: 6px;
+        }
+        .metrics {
+          position: static;
+          width: auto;
+          max-height: none;
+          flex: 1 1 auto;
+          min-height: 150px;
+          margin: 0 6px 6px;
+          overscroll-behavior: contain;
+          /* The card fills the leftover viewport, and the chart — the
+             premise's "answer" — absorbs the breathing room (capped so the
+             card never becomes all chart). */
+          display: flex;
+          flex-direction: column;
+        }
+        #wait-chart {
+          flex: 1 1 120px;
+          height: auto;
+          min-height: 110px;
+          max-height: 240px;
+        }
+        /* The Window detail stat is one long nowrap line — at card width it
+           would overflow the card edge, so stats may wrap their words. */
+        .headline-stats .stat {
+          white-space: normal;
+        }
+        #panel {
+          flex: none;
+          width: auto;
+          max-width: none;
+          max-height: none;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          padding: 0;
+          padding-bottom: env(safe-area-inset-bottom);
+          border-left: none;
+          border-top: 1px solid var(--panel-border);
+        }
+        .deck-bar {
+          display: block;
+        }
+        #deck-toggle {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          width: 100%;
+          box-sizing: border-box;
+          min-height: 48px;
+          padding: 8px 14px;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 600;
+          color: var(--text);
+          background: var(--panel-bg);
+          border: 0;
+          cursor: pointer;
+        }
+        /* The deck's state chevron — the arm-summary triangle, flipped. */
+        #deck-toggle::after {
+          content: '';
+          flex: 0 0 auto;
+          width: 0;
+          height: 0;
+          border-left: 5px solid var(--text-dim);
+          border-top: 4px solid transparent;
+          border-bottom: 4px solid transparent;
+        }
+        #deck-toggle[aria-expanded='true']::after {
+          border-left: 4px solid transparent;
+          border-right: 4px solid transparent;
+          border-top: 5px solid var(--text-dim);
+          border-bottom: none;
+        }
+        #deck-body {
+          display: block;
+          /* The open deck leaves the canvas (56.25vw tall), the metrics chip
+             row, a usable card minimum, and the bar itself visible above it;
+             floored at 200px so short phones still get a usable deck (the
+             stage scrolls rather than clipping). */
+          max-height: max(200px, min(60vh, calc(100vh - 56.25vw - 300px)));
+          max-height: max(200px, min(60dvh, calc(100dvh - 56.25vw - 300px)));
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          padding: 10px 14px 18px;
+          border-top: 1px solid var(--panel-border);
+        }
+        #deck-body[hidden] {
+          display: none;
+        }
+      }
+      /* Landscape phones (< 980px): too short to dock anything — the world
+         caps at viewport height, metrics and controls flow beneath it, and
+         the page scrolls (the old narrow-window wrap behavior, made
+         intentional and touch-sized). */
+      @media (max-width: 980px) and (orientation: landscape) {
+        .stage {
+          flex-direction: column;
+          flex-wrap: nowrap;
+          min-height: 100vh;
+          min-height: 100dvh;
+        }
+        .world-column {
+          flex: none;
+        }
+        /* Column stack (see portrait): canvas over in-flow card — the card
+           lives inside this wrap and must not sit beside the canvas. */
+        .canvas-wrap {
+          flex: none;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+        }
+        #world {
+          flex: none;
+          align-self: center;
+        }
+        #metrics-toggle {
+          position: static;
+          align-self: flex-start;
+          margin: 6px;
+        }
+        .metrics {
+          position: static;
+          width: auto;
+          max-height: none;
+          margin: 0 6px;
+        }
+        .headline-stats .stat {
+          white-space: normal;
+        }
+        #panel {
+          width: auto;
+          max-width: none;
+          max-height: none;
+          border-left: none;
+          border-top: 1px solid var(--panel-border);
+        }
       }
     </style>
   </head>
@@ -662,12 +914,23 @@
         </div>
       </div>
       <aside id="panel" aria-label="Simulation controls">
-        <!-- Task order (layout pass): transport + greens, then the optimizer
-             (the loop's end), then the deep config — arms, control type,
-             preset. Three mount points so the optimizer sits between. -->
-        <div id="controls-top"></div>
-        <div id="optimizer"></div>
-        <div id="controls-rest"></div>
+        <!-- Mobile deck (adapt pass): below 980px in portrait the panel docks
+           to the bottom of the viewport as an expandable deck — a persistent
+           "Controls" bar plus a scrollable body — so the world and metrics
+           stay visible while tuning. Desktop flattens the wrapper (the bar
+           hides, the body becomes in-flow children of #panel exactly as
+           before). Task order inside is unchanged: transport + greens, then
+           the optimizer, then the deep config. -->
+        <div class="deck-bar">
+          <button id="deck-toggle" type="button" aria-expanded="false" aria-controls="deck-body">
+            Controls
+          </button>
+        </div>
+        <div id="deck-body">
+          <div id="controls-top"></div>
+          <div id="optimizer"></div>
+          <div id="controls-rest"></div>
+        </div>
       </aside>
     </main>
     <script type="module" src="/src/main.ts"></script>

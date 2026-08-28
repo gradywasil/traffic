@@ -34,7 +34,10 @@ export const CHART_LINE_COLOR = ACCENT;
 
 // --- layout constants (CSS px) ----------------------------------------------
 const MARGIN_LEFT_PX = 44;
-const MARGIN_RIGHT_PX = 10;
+// 18px (not 10): a centered mm:ss label at the window's right edge needs its
+// half-width inside the margin or it clips at the canvas edge on narrow
+// (mobile-card) chart widths (adapt pass).
+const MARGIN_RIGHT_PX = 18;
 const MARGIN_TOP_PX = 20;
 const MARGIN_BOTTOM_PX = 18;
 // D1 legibility: data line 1.6 → 1.8 px and head dot 2.6 → 3.0 so the series
@@ -93,13 +96,16 @@ export function buildChartFrame(input: ChartFrameInput): readonly DrawCommand[] 
     color: CHART_BG_COLOR,
   });
 
-  // Title.
+  // Title. Narrow (mobile-card) charts drop the window suffix — the full
+  // line clips inside a 375px-wide canvas (adapt pass).
+  const title =
+    width < 440 ? 'Avg wait — control delay (s)' : `Average wait — control delay (s), last ${formatMMSS(input.windowSeconds)}`;
   commands.push({
     kind: 'text',
     layer: 'hud',
     x: MARGIN_LEFT_PX,
     y: 4,
-    text: `Average wait — control delay (s), last ${formatMMSS(input.windowSeconds)}`,
+    text: title,
     color: CHART_TITLE_COLOR,
     fontPx: TITLE_FONT_PX,
   });

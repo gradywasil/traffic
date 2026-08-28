@@ -125,6 +125,15 @@ export interface SceneCar {
 export interface SceneHud {
   readonly fps: number;
   readonly frameMs: number;
+  /**
+   * Compensates the HUD text for a shrunken canvas (adapt pass): the painter
+   * transform scales the whole 1280×720 logical frame by `cssWidth / 1280`,
+   * so unscaled HUD text renders at ~4 px on a phone. `textScale` multiplies
+   * the HUD's font size and insets by (typically) `1280 / cssWidth` —
+   * capped by the caller — keeping the readout a constant CSS-pixel size.
+   * 1 (default) leaves the desktop frame exactly as before.
+   */
+  readonly textScale?: number;
 }
 
 export interface RenderScene {
@@ -517,26 +526,27 @@ export class WorldRenderer {
 
   private pushHud(commands: DrawCommand[], scene: RenderScene): void {
     const hud = scene.hud;
+    const s = hud?.textScale ?? 1;
     if (hud !== null) {
       const fpsColor = hud.fps >= 55 ? HUD_GOOD_COLOR : hud.fps >= 30 ? HUD_OK_COLOR : HUD_BAD_COLOR;
       commands.push({
         kind: 'text',
         layer: 'hud',
-        x: 12,
-        y: 12,
+        x: 12 * s,
+        y: 12 * s,
         text: `FPS ${hud.fps.toFixed(0)} (${hud.frameMs.toFixed(1)} ms/frame)`,
         color: fpsColor,
-        fontPx: HUD_FONT_PX,
+        fontPx: HUD_FONT_PX * s,
       });
     }
     commands.push({
       kind: 'text',
       layer: 'hud',
-      x: 12,
-      y: 32,
+      x: 12 * s,
+      y: 32 * s,
       text: `sim ${scene.timeSeconds.toFixed(1)} s · cars ${String(scene.cars.length)} · ${scene.controlType}`,
       color: HUD_TEXT_COLOR,
-      fontPx: HUD_FONT_PX,
+      fontPx: HUD_FONT_PX * s,
     });
   }
 
