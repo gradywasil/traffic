@@ -62,6 +62,7 @@
         min-width: 0;
       }
       .canvas-wrap {
+        position: relative;
         flex: 1 1 auto;
         display: flex;
         align-items: center;
@@ -79,15 +80,44 @@
         height: auto;
         cursor: pointer;
       }
-      /* U3 metrics card under the canvas: the chart stays visible next to the
-         canvas without taking width from it (the canvas is width-limited at
-         1280x720, so a below-canvas card crowds nothing). */
+      /* Metrics popover (owner request): the stats/chart ride ON the canvas
+         as a dismissible overlay — flat tonal card + hairline, no shadow
+         (doctrine) — so the world column is canvas-only and the page never
+         scrolls. The toggle chip sits in the canvas's bottom-left corner. */
+      #metrics-toggle {
+        position: absolute;
+        left: 14px;
+        bottom: 14px;
+        z-index: 3;
+        font: inherit;
+        font-size: 12px;
+        color: var(--text);
+        background: #1a212d;
+        border: 1px solid var(--panel-border);
+        border-radius: 5px;
+        padding: 4px 10px;
+        cursor: pointer;
+      }
+      #metrics-toggle[aria-pressed='true'] {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
       .metrics {
-        margin: 0 8px 0;
+        position: absolute;
+        left: 14px;
+        bottom: 48px;
+        z-index: 2;
+        width: min(520px, calc(100% - 28px));
+        max-height: calc(100% - 62px);
+        overflow-y: auto;
+        box-sizing: border-box;
         padding: 6px 12px 8px;
         background: var(--panel-bg);
         border: 1px solid var(--panel-border);
         border-radius: 6px;
+      }
+      .metrics[hidden] {
+        display: none;
       }
       #wait-chart {
         display: block;
@@ -550,28 +580,33 @@
          and text selection come from the platform by default — theme them
          from the ladder like every other surface. */
       #panel,
+      .metrics,
       .optimizer-results,
       .overlay-body {
         scrollbar-width: thin;
         scrollbar-color: #232a36 transparent;
       }
       #panel::-webkit-scrollbar,
+      .metrics::-webkit-scrollbar,
       .optimizer-results::-webkit-scrollbar,
       .overlay-body::-webkit-scrollbar {
         width: 8px;
       }
       #panel::-webkit-scrollbar-thumb,
+      .metrics::-webkit-scrollbar-thumb,
       .optimizer-results::-webkit-scrollbar-thumb,
       .overlay-body::-webkit-scrollbar-thumb {
         background: #232a36;
         border-radius: 4px;
       }
       #panel::-webkit-scrollbar-thumb:hover,
+      .metrics::-webkit-scrollbar-thumb:hover,
       .optimizer-results::-webkit-scrollbar-thumb:hover,
       .overlay-body::-webkit-scrollbar-thumb:hover {
         background: #384359;
       }
       #panel::-webkit-scrollbar-track,
+      .metrics::-webkit-scrollbar-track,
       .optimizer-results::-webkit-scrollbar-track,
       .overlay-body::-webkit-scrollbar-track {
         background: transparent;
@@ -605,21 +640,26 @@
             role="img"
             aria-label="Traffic intersection simulation (canvas). Use the control panel to edit the intersection; click an arm to select it."
           ></canvas>
+          <!-- Metrics popover (owner request): the stats/chart ride ON the
+             canvas as a dismissible overlay, so the world column is
+             canvas-only and nothing ever page-scrolls. The toggle lives in
+             the canvas's bottom-left corner (the HUD owns the top-left). -->
+          <button id="metrics-toggle" type="button" aria-pressed="true">Metrics</button>
+          <section class="metrics" id="metrics-popover" aria-label="Live metrics">
+            <h2 class="visually-hidden">Live metrics</h2>
+            <!-- The premise line: the one taught interaction — the aha action
+               (tweak a green, watch delay answer). Static by design: a caption
+               that is always true, not a tooltip to dismiss. -->
+            <p class="premise">Tune a green phase in the panel — the delay line answers.</p>
+            <div id="headline-stats"></div>
+            <canvas
+              id="wait-chart"
+              role="img"
+              aria-label="Rolling average wait chart over the last three simulated minutes. Current values: see the headline statistics above."
+            ></canvas>
+            <div id="engineering-overlay"></div>
+          </section>
         </div>
-        <section class="metrics" aria-label="Live metrics">
-          <h2 class="visually-hidden">Live metrics</h2>
-          <!-- The premise line: the one taught interaction — the aha action
-             (tweak a green, watch delay answer). Static by design: a caption
-             that is always true, not a tooltip to dismiss. -->
-          <p class="premise">Tune a green phase in the panel — the delay line answers.</p>
-          <div id="headline-stats"></div>
-          <canvas
-            id="wait-chart"
-            role="img"
-            aria-label="Rolling average wait chart over the last three simulated minutes. Current values: see the headline statistics above."
-          ></canvas>
-          <div id="engineering-overlay"></div>
-        </section>
       </div>
       <aside id="panel" aria-label="Simulation controls">
         <!-- Task order (layout pass): transport + greens, then the optimizer

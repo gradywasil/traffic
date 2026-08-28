@@ -25,6 +25,14 @@ function requireElement(id: string): HTMLElement {
   return element;
 }
 
+function requireButton(id: string): HTMLButtonElement {
+  const element = requireElement(id);
+  if (!(element instanceof HTMLButtonElement)) {
+    throw new Error(`#${id} button element not found`);
+  }
+  return element;
+}
+
 function main(): void {
   try {
     bootApp({
@@ -35,6 +43,8 @@ function main(): void {
       headlineContainer: requireElement('headline-stats'),
       overlayContainer: requireElement('engineering-overlay'),
       optimizerContainer: requireElement('optimizer'),
+      metricsPopover: requireElement('metrics-popover'),
+      metricsToggle: requireButton('metrics-toggle'),
     });
   } catch (error) {
     // Harden: a boot failure (missing root, canvas context refused, …) must

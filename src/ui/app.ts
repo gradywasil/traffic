@@ -65,6 +65,10 @@ export interface AppElements {
   readonly overlayContainer: HTMLElement;
   /** O2: signal timing optimizer (run/cancel/progress/results/apply). */
   readonly optimizerContainer: HTMLElement;
+  /** The metrics popover riding on the canvas (owner-request layout). */
+  readonly metricsPopover: HTMLElement;
+  /** The popover's corner toggle chip on the canvas. */
+  readonly metricsToggle: HTMLButtonElement;
 }
 
 /** Rolling-window FPS meter (last ~2 s of frames), refreshed at 4 Hz (F1). */
@@ -182,6 +186,15 @@ export function bootApp(elements: AppElements): void {
     const world = logicalPxToWorldMeters(logical);
     const pick = pickArmLane(runtime.geometry, world);
     model.select(pick === null ? null : pick.arm, pick === null ? null : pick.laneIndex);
+  });
+
+  // Metrics popover (owner-request layout): the toggle chip in the canvas's
+  // bottom-left corner shows/hides the stats overlay. Default open — the
+  // chart is the aha; one flip here changes the default.
+  elements.metricsToggle.addEventListener('click', () => {
+    const open = elements.metricsPopover.hasAttribute('hidden');
+    elements.metricsPopover.toggleAttribute('hidden', !open);
+    elements.metricsToggle.setAttribute('aria-pressed', String(open));
   });
 
   window.addEventListener('resize', () => {
