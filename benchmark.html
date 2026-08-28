@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Q2 Performance Benchmark — Traffic Intersection Flow Simulator</title>
+    <style>
+      /* Minimal sibling of index.html's shell: the benchmark needs the same
+         canvas + chart + overlay DOM the app drives per frame, plus a results
+         column. NOT linked from the app UI — a QA page opened directly. */
+      :root {
+        color-scheme: dark;
+        --panel-bg: #10141c;
+        --panel-border: #232a36;
+        --text: #d7dde8;
+        --text-dim: #8b95a6;
+        --accent: #6fb7ff;
+        --error: #ff7a7a;
+        --ok: #7ee2a8;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100%;
+        background: #090b10;
+      }
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        color: var(--text);
+      }
+      header {
+        padding: 10px 14px 0;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--text-dim);
+        margin: 0 0 8px;
+        max-width: 960px;
+      }
+      .stage {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: stretch;
+        min-height: calc(100vh - 90px);
+      }
+      .world-column {
+        flex: 1 1 640px;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .canvas-wrap {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+        min-height: 320px;
+      }
+      #world {
+        display: block;
+        background: #0b0e14;
+        width: min(100%, calc((100vh - 240px) * 16 / 9));
+        aspect-ratio: 16 / 9;
+        height: auto;
+      }
+      .metrics {
+        margin: 0 8px 8px;
+        padding: 8px 12px 10px;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-radius: 6px;
+      }
+      #wait-chart {
+        display: block;
+        width: 100%;
+        height: 110px;
+        margin-top: 6px;
+        background: #0b0e14;
+        border: 1px solid var(--panel-border);
+        border-radius: 4px;
+      }
+      #bench-panel {
+        flex: 0 0 460px;
+        max-width: 460px;
+        box-sizing: border-box;
+        padding: 12px 14px 24px;
+        background: var(--panel-bg);
+        border-left: 1px solid var(--panel-border);
+        overflow-y: auto;
+      }
+      #bench-panel h2 {
+        font-size: 15px;
+        margin: 14px 0 6px;
+      }
+      #rerun {
+        font: inherit;
+        color: var(--text);
+        background: #1a212d;
+        border: 1px solid var(--panel-border);
+        border-radius: 5px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      #rerun:disabled {
+        opacity: 0.5;
+        cursor: not-progress;
+      }
+      #bench-status {
+        font-size: 12px;
+        min-height: 16px;
+        margin: 8px 0 0;
+      }
+      #bench-status.done {
+        color: var(--ok);
+      }
+      #bench-status.failed {
+        color: var(--error);
+      }
+      #download {
+        display: inline-block;
+        margin: 6px 0;
+        font-size: 13px;
+        color: var(--accent);
+      }
+      #download[hidden] {
+        display: none;
+      }
+      #results {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 11px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin: 0;
+        padding: 8px;
+        background: #0b0e14;
+        border: 1px solid var(--panel-border);
+        border-radius: 4px;
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Q2 performance &amp; acceptance benchmark</h1>
+      <p class="hint">
+        Protocol (automatic on load, ~60 s): loads the Q2 stress world (guaranteed ≥150 concurrent cars),
+        then measures requestAnimationFrame frame times for the FULL app pipeline — sim tick + draw-list
+        build + canvas rasterization + ~1 Hz chart/headline/overlay — for 10 s at 1× speed and 10 s at 4×
+        speed, then runs the DEFAULT optimizer sweep concurrently (real worker pool, app-default balanced
+        preset) and reports frame-time percentiles during the sweep plus the sweep wall time. Keep this tab
+        in the foreground; background tabs throttle rAF and invalidate the numbers. Results print below, to
+        the console, and can be downloaded as JSON for the production-log evidence record.
+      </p>
+    </header>
+    <main class="stage">
+      <div class="world-column">
+        <div class="canvas-wrap">
+          <canvas
+            id="world"
+            role="img"
+            aria-label="Benchmark stress world: an oversaturated four-way intersection with at least 150 concurrent cars."
+          ></canvas>
+        </div>
+        <section class="metrics" aria-label="Live metrics (part of the measured pipeline)">
+          <div id="headline-stats"></div>
+          <canvas
+            id="wait-chart"
+            role="img"
+            aria-label="Rolling average wait chart over the last three simulated minutes."
+          ></canvas>
+          <div id="engineering-overlay"></div>
+        </section>
+      </div>
+      <aside id="bench-panel" aria-label="Benchmark controls and results">
+        <button id="rerun" type="button" disabled>Re-run benchmark</button>
+        <p id="bench-status" role="status">starting…</p>
+        <a id="download" hidden download="q2-benchmark-results.json">Download results JSON</a>
+        <h2>Results</h2>
+        <pre id="results">waiting for the first segment…</pre>
+      </aside>
+    </main>
+    <script type="module" src="/src/benchmark-main.ts"></script>
+  </body>
+</html>

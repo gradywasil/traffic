@@ -1,0 +1,277 @@
+{
+  "steps": [
+    {
+      "step": "load",
+      "ok": true,
+      "note": "title=\"Traffic Intersection Flow Simulator\" readyState=complete"
+    },
+    {
+      "step": "boot-inventory",
+      "ok": true,
+      "data": {
+        "controlCount": 58,
+        "byType": {
+          "button:button": 7,
+          "select:select-one": 7,
+          "input:range": 20,
+          "input:checkbox": 24
+        },
+        "unlabeledControls": 6,
+        "worldCanvas": {
+          "cssW": 1244,
+          "cssH": 700,
+          "backingW": 1244,
+          "backingH": 700,
+          "role": "img"
+        },
+        "headline": "Avg wait (control delay)—\nThroughput—\nWindow0 trips in window · max queue 0 · since reset 0:02",
+        "overlayTogglePresent": true,
+        "optimizeButtonPresent": true
+      },
+      "note": "controls=58 unlabeled=6"
+    },
+    {
+      "step": "console-clean",
+      "ok": true,
+      "data": {
+        "totalMessages": 0,
+        "bad": []
+      },
+      "note": "0 msgs, 0 error/warn"
+    },
+    {
+      "step": "chart-1hz-headline",
+      "ok": true,
+      "data": {
+        "sample1": "Avg wait (control delay)3.3 s\nThroughput883 veh/h\nWindow12 trips in window · max queue 8 · since reset 0:49",
+        "sample2": "Avg wait (control delay)6.2 s\nThroughput1061 veh/h\nWindow15 trips in window · max queue 8 · since reset 0:51",
+        "sample3": "Avg wait (control delay)6.2 s\nThroughput1061 veh/h\nWindow15 trips in window · max queue 8 · since reset 0:51",
+        "changed12": true,
+        "changed23": false
+      },
+      "note": "headline 1→2 changed=true, 2→3 changed=false"
+    },
+    {
+      "step": "shot-balanced-chart",
+      "ok": true,
+      "note": "45 s of balanced running"
+    },
+    {
+      "step": "overlay-open",
+      "ok": true,
+      "data": {
+        "beforeHiddenLength": 19,
+        "textLength": 983,
+        "text": "Engineering overlay\nWindow statistics\nMean control delay\n6.17 s\np50\n2.20 s\np85\n12.82 s\np95\n21.56 s\nMean stopped time\n3.39 s\nThroughput (all arms)\n1040 veh/h\nMax queue (all arms)\n8\nTrips in window\n15\nWindow\n3:00\nSince reset\n0:52\nPer-arm control delay (window mean)\nNorth\n0.23 s\nEast\n13.67 s\nSouth\n1.91 s\nWest\n17.06 s\nPer-arm detail\nArm\tStopped (mean)\tThroughput\tMax queue\tMax queue / lane\nNorth\t0.00 s\t208 veh/h\t1\t1 / 1\nEast\t7.30 s\t139 veh/h\t1\t1 / 1\nSouth\t0.00 s\t486 veh/h\t4\t0 / 4\nWest\t12.10 s\t208 veh/h\t6\t1 / 6\nModel parameters (config, read-only)\nCruise speed v_c\n13.9 m/s\nTime headway T\n1.1 s\nMax accel a\n1.3 m/s²\nComfortable decel b\n2 m/s²\nEmergency decel b_e\n6 m/s²\nMin gap s0\n2 m\nHard min gap s_min\n0.5 m\nAccel exponent δ\n4\nCar length\n5 m\nLateral accel a_lat\n1.7 m/s²\nYellow reaction t_r\n1 s\nYel",
+        "armBarRows": 4,
+        "armTables": 1,
+        "paramEntries": 14
+      },
+      "note": "armBars=4 paramEntries=14"
+    },
+    {
+      "step": "canvas-click-pick",
+      "ok": true,
+      "data": {
+        "before": 0,
+        "selectedArms": [
+          "north"
+        ],
+        "northLaneRowsSelected": 1,
+        "clickAt": {
+          "x": 616,
+          "y": 203
+        }
+      },
+      "note": "selected=north"
+    },
+    {
+      "step": "edit-spawn-rate-live",
+      "ok": true,
+      "data": {
+        "before": {
+          "spawn": "550 veh/h",
+          "preset": "balanced"
+        },
+        "set": {
+          "before": "550 veh/h",
+          "after": "800 veh/h",
+          "value": "800"
+        },
+        "after": {
+          "spawn": "800 veh/h",
+          "preset": "custom",
+          "issues": ""
+        }
+      },
+      "note": "spawn 550 veh/h → 800 veh/h, preset → custom"
+    },
+    {
+      "step": "edit-green-live",
+      "ok": true,
+      "data": {
+        "before": {
+          "phaseLabels": [
+            "NS left (protected) 7 s",
+            "NS through / right 15 s",
+            "EW left (protected) 7 s",
+            "EW through / right 14 s"
+          ],
+          "cycle": "60 s"
+        },
+        "set": {
+          "before": "15 s",
+          "after": "20 s",
+          "value": "20"
+        },
+        "after": {
+          "greens": [
+            "7 s",
+            "20 s",
+            "7 s",
+            "14 s"
+          ],
+          "cycle": "65 s"
+        }
+      },
+      "note": "cycle 60 s → 65 s"
+    },
+    {
+      "step": "pause-freezes-headline",
+      "ok": true,
+      "data": {
+        "button": {
+          "text": "Play",
+          "pressed": "true"
+        },
+        "whilePausedChanged": false,
+        "afterResumeChanged": true
+      },
+      "note": "paused=true frozen=true resumed=true"
+    },
+    {
+      "step": "speed-4x",
+      "ok": true,
+      "data": {
+        "before": "1",
+        "after": "4",
+        "headlineAdvancedAt4x": true
+      },
+      "note": "speed 1→4"
+    },
+    {
+      "step": "optimizer-run",
+      "ok": true,
+      "data": {
+        "status": "Done in 2.5 s — best 0.7 s vs current 1.3 s (288 runs, worker-pool).",
+        "results": {
+          "summary": "Current plan: 1.3 s ± 0.1 s (measured as extra paired runs). Ranked candidates (96 plans · 288 runs · worker-pool · 2.5 s):",
+          "rowCount": 96,
+          "rows": [
+            {
+              "text": "1. 5 + 26 + 10 + 7 Best 0.7 s ± 0.2 s -0.6 s vs current Apply",
+              "best": true,
+              "current": false
+            },
+            {
+              "text": "2. 5 + 26 + 5 + 12 0.7 s ± 0.2 s -0.6 s vs current Apply",
+              "best": false,
+              "current": false
+            },
+            {
+              "text": "3. 5 + 26 + 9 + 8 0.7 s ± 0.2 s -0.6 s vs current Apply",
+              "best": false,
+              "current": false
+            },
+            {
+              "text": "4. 5 + 27 + 10 + 6 0.7 s ± 0.2 s -0.6 s vs current Apply",
+              "best": false,
+              "current": false
+            },
+            {
+              "text": "5. 5 + 27 + 8 + 8 0.7 s ± 0.2 s -0.6 s vs current Apply",
+              "best": false,
+              "current": false
+            },
+            {
+              "text": "6. 5 + 28 + 10 + 5 0.7 s ± 0.2 s -0.6 s vs current Apply",
+              "best": false,
+              "current": false
+            },
+            {
+              "text": "7. 5 + 28 + 7 + 8 0.7 s ± 0.2 s -0.6 s vs current Apply",
+              "best": false,
+              "current": false
+            },
+            {
+              "text": "8. 5 + 24 + 10 + 9 0.7 s ± 0.2 s -0.6 s vs current Apply",
+              "best": false,
+              "current": false
+            }
+          ]
+        }
+      },
+      "note": "Done in 2.5 s — best 0.7 s vs current 1.3 s (288 runs, worker-pool)."
+    },
+    {
+      "step": "optimizer-apply-best",
+      "ok": true,
+      "data": {
+        "before": {
+          "greens": [
+            "7 s",
+            "20 s",
+            "7 s",
+            "14 s"
+          ],
+          "cycle": "65 s"
+        },
+        "applied": {
+          "clicked": true,
+          "rowText": "1.5 + 26 + 10 + 7Best0.7 s ± 0.2 s-0.6 s vs currentApply"
+        },
+        "after": {
+          "greens": [
+            "5 s",
+            "26 s",
+            "10 s",
+            "7 s"
+          ],
+          "cycle": "65 s",
+          "applyIssue": "",
+          "issueHidden": true
+        }
+      },
+      "note": "greens 7 s/20 s/7 s/14 s → 5 s/26 s/10 s/7 s, cycle 65 s → 65 s"
+    },
+    {
+      "step": "preset-light-chart",
+      "ok": true,
+      "data": {
+        "headline": "Avg wait (control delay)8.9 s\nThroughput649 veh/h\nWindow9 trips in window · max queue 4 · since reset 0:50"
+      },
+      "note": "50 s of light"
+    },
+    {
+      "step": "preset-gridlock-chart",
+      "ok": true,
+      "data": {
+        "headline": "Avg wait (control delay)6.4 s\nThroughput866 veh/h\nWindow12 trips in window · max queue 22 · since reset 0:50"
+      },
+      "note": "50 s of gridlock-risk"
+    }
+  ],
+  "console": [],
+  "exceptions": [],
+  "page": {
+    "ws": "ws://127.0.0.1:9333/devtools/page/523C5B6F80A038A1603D34323CC2CEAE",
+    "url": "http://localhost:4173/"
+  },
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36",
+  "hardwareConcurrency": 8,
+  "viewport": {
+    "w": 1600,
+    "h": 913,
+    "dpr": 1
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "steps": [
+    {
+      "step": "preset-gridlock-select",
+      "ok": true,
+      "note": "preset=gridlock-risk"
+    },
+    {
+      "step": "optimizer-gridlock",
+      "ok": true,
+      "data": {
+        "status": "Done in 2.1 s — best 1.2 s vs current 6.3 s (288 runs, worker-pool).",
+        "rows": [
+          {
+            "text": "1. 5 + 24 + 15 + 19 Best 1.2 s ± 0.4 s -5.1 s vs current Apply",
+            "best": true,
+            "current": false
+          },
+          {
+            "text": "2. 5 + 24 + 16 + 18 1.2 s ± 0.4 s -5.1 s vs current Apply",
+            "best": false,
+            "current": false
+          },
+          {
+            "text": "3. 5 + 24 + 25 + 9 1.2 s ± 0.4 s -5.1 s vs current Apply",
+            "best": false,
+            "current": false
+          },
+          {
+            "text": "4. 5 + 24 + 26 + 8 1.2 s ± 0.4 s -5.1 s vs current Apply",
+            "best": false,
+            "current": false
+          },
+          {
+            "text": "5. 5 + 25 + 12 + 21 1.2 s ± 0.4 s -5.1 s vs current Apply",
+            "best": false,
+            "current": false
+          }
+        ]
+      },
+      "note": "Done in 2.1 s — best 1.2 s vs current 6.3 s (288 runs, worker-pool)."
+    },
+    {
+      "step": "a11y-accessible-names",
+      "ok": true,
+      "data": {
+        "total": 155,
+        "unnamed": [],
+        "allNativeDom": true,
+        "canvasTabIndex": [
+          -1,
+          -1
+        ]
+      },
+      "note": "controls=155 unnamed=0 canvasTabIndex=-1,-1"
+    },
+    {
+      "step": "headline-text-present",
+      "ok": true,
+      "data": {
+        "headline": "Avg wait (control delay)10.4 s\nThroughput877 veh/h\nWindow15 trips in window · max queue 33 · since reset 1:02"
+      },
+      "note": "Avg wait (control delay)10.4 s | Throughput877 veh/h | Window15 trips in window · max queue 33 · since reset 1:02"
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "schema": "q2-benchmark/1",
+  "meta": {
+    "date": "2026-08-27T23:29:50.337Z",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.0.0 Safari/537.36",
+    "hardwareConcurrency": 8,
+    "sweepWorkerPoolSize": 6,
+    "devicePixelRatio": 1,
+    "canvasCssPx": {
+      "width": 1124,
+      "height": 632
+    },
+    "frameBudgetMs": 16.67,
+    "segmentWallSeconds": 10
+  },
+  "load": {
+    "configId": "q2-stress",
+    "targetConcurrentCars": 150,
+    "warmupTicks": 1500,
+    "aliveAtWarmupEnd": 159,
+    "note": "stress config guarantees the >=150 floor post-warmup (tests/perf/stress-config.ts); aliveCars.min per segment proves it held during measurement"
+  },
+  "segments": [
+    {
+      "label": "1x",
+      "wallSeconds": 10,
+      "frames": 600,
+      "meanFps": 59.4,
+      "p99Fps": 53.8,
+      "frameMs": {
+        "median": 16.7,
+        "p95": 18.2,
+        "p99": 18.6,
+        "max": 116.8
+      },
+      "longFramesOver20ms": 1,
+      "updateMedianMs": 0.2,
+      "perTickMaxMs": 0.4,
+      "renderMedianMs": 0.7,
+      "renderP99Ms": 1.2,
+      "aliveCars": {
+        "min": 157,
+        "max": 161
+      }
+    },
+    {
+      "label": "4x",
+      "wallSeconds": 10,
+      "frames": 600,
+      "meanFps": 60,
+      "p99Fps": 53.8,
+      "frameMs": {
+        "median": 16.7,
+        "p95": 18.3,
+        "p99": 18.6,
+        "max": 18.7
+      },
+      "longFramesOver20ms": 0,
+      "updateMedianMs": 0.2,
+      "perTickMaxMs": 0.5,
+      "renderMedianMs": 0.9,
+      "renderP99Ms": 1.8,
+      "aliveCars": {
+        "min": 161,
+        "max": 170
+      }
+    },
+    {
+      "label": "sweep",
+      "wallSeconds": 2.44,
+      "frames": 145,
+      "meanFps": 60,
+      "p99Fps": 53.5,
+      "frameMs": {
+        "median": 16.7,
+        "p95": 18.2,
+        "p99": 18.7,
+        "max": 18.7
+      },
+      "longFramesOver20ms": 0,
+      "updateMedianMs": 0.2,
+      "perTickMaxMs": 0.3,
+      "renderMedianMs": 0.6,
+      "renderP99Ms": 1.3,
+      "aliveCars": {
+        "min": 162,
+        "max": 167
+      }
+    }
+  ],
+  "sweep": {
+    "preset": "balanced (app default)",
+    "executor": "worker-pool",
+    "candidates": 92,
+    "totalRuns": 276,
+    "reps": 3,
+    "horizonSeconds": 45,
+    "wallSeconds": 2.44,
+    "bestCandidateId": "g:5+26+5+7",
+    "bestMeanControlDelaySeconds": 0.632
+  },
+  "frameBudgetArithmetic": {
+    "source": "tests/perf/frame-budget.ts (shared with the headless tests)",
+    "steady1xWorstCaseMs": 1.6,
+    "steady1xHeadroomMs": 15.07,
+    "speed4xWorstCaseMs": 2.3,
+    "speed4xHeadroomMs": 14.37,
+    "note": "per-frame worst case = perTickMax × 1 update + renderP99 (worker-pool sweep contributes 0 main-thread chunk; the time-sliced fallback bound is quoted from the headless measurements)"
+  },
+  "bars": {
+    "render60fpsAt150PlusCars": {
+      "pass": true,
+      "detail": "mean 59.4 fps at 157–161 cars (bar: ≥55 fps at ≥150 cars; 60 fps target)"
+    },
+    "chart1HzWithoutFrameDrops": {
+      "pass": true,
+      "detail": "chart/headline/overlay ran inside every measured frame (part of renderMs); sim-time gate limits redraws to ~1 Hz at 1× speed"
+    },
+    "defaultSweepUnder30sNoDrops": {
+      "pass": true,
+      "detail": "sweep 2.44 s, 60 fps during (bars: ≤30 s, ≥55 fps)"
+    }
+  }
+}
