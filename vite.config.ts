@@ -9,10 +9,16 @@ import { defineConfig } from 'vite';
  * optimizer worker chunk is shared). Not linked from the app UI anywhere — a
  * human opens it directly for acceptance measurements.
  *
+ * `base: './'` (added for GitHub Pages hosting): the site is served from a
+ * subpath (https://<user>.github.io/traffic/), so asset URLs must be relative
+ * or they 404. Relative base also keeps `dist/` portable — the same build
+ * works on Netlify/Cloudflare drag-and-drop or any subdirectory host.
+ *
  * vitest keeps using vitest.config.ts (it takes priority over vite.config.ts),
  * so test discovery is unaffected.
  */
 export default defineConfig({
+  base: './',
   build: {
     rollupOptions: {
       input: {
